@@ -1,0 +1,85 @@
+{
+  "name": "work-focus",
+  "productName": "work-focus",
+  "version": "1.0.0",
+  "description": "My Electron application description",
+  "main": "dist/main/main.js",
+  "scripts": {
+    "build:main": "tsc -p tsconfig.json",
+    "build:renderer": "bun build src/index.tsx --outdir dist/main/renderer --target browser --format esm --splitting --public-path ./",
+    "copy-public": "cp public/index.html dist/main/renderer/index.html",
+    "build": "npm run build:main && npm run build:renderer && npm run copy-public",
+    "start": "NODE_ENV=production npm run build && electron .",
+    "dev:main": "tsc -w -p tsconfig.json",
+    "dev:renderer": "bun build src/index.tsx --outdir dist/main/renderer --target browser --format esm --splitting --public-path ./ --watch",
+    "start:dev": "npm run build:renderer && npm run copy-public && concurrently --kill-others-on-fail \"npm run dev:main\" \"npm run dev:renderer\" \"wait-on dist/main/renderer/index.html && electron .\""
+  },
+  "keywords": [],
+  "author": "khoahd",
+  "license": "MIT",
+  "config": {
+    "forge": {
+      "make_targets": {
+        "win32": [
+          "squirrel"
+        ],
+        "darwin": [
+          "zip"
+        ],
+        "linux": [
+          "deb",
+          "rpm"
+        ]
+      },
+      "electronPackagerConfig": {
+        "packageManager": "npm"
+      },
+      "electronWinstallerConfig": {
+        "name": "work_focus"
+      },
+      "electronInstallerDebian": {},
+      "electronInstallerRedhat": {},
+      "github_repository": {
+        "owner": "",
+        "name": ""
+      },
+      "windowsStoreConfig": {
+        "packageName": "",
+        "name": "workfocus"
+      }
+    }
+  },
+  "dependencies": {
+    "axios": "^1.9.0",
+    "body-parser": "^2.2.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "electron": "^36.4.0",
+    "electron-compile": "^6.4.4",
+    "electron-squirrel-startup": "^1.0.1",
+    "express": "^5.1.0",
+    "mongoose": "^8.15.1",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-router-dom": "^7.6.2"
+  },
+  "devDependencies": {
+    "@types/body-parser": "^1.19.6",
+    "@types/cors": "^2.8.19",
+    "@types/electron": "^1.4.38",
+    "@types/express": "^4.17.23",
+    "@types/mongoose": "^5.11.96",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.1.7",
+    "@types/react-dom": "^19.1.6",
+    "@types/react-router-dom": "^5.3.3",
+    "babel-plugin-transform-async-to-generator": "^6.24.1",
+    "babel-preset-env": "^1.7.0",
+    "babel-preset-react": "^6.24.1",
+    "concurrently": "^9.1.2",
+    "electron-forge": "^5.2.4",
+    "electron-prebuilt-compile": "8.2.0",
+    "typescript": "^5.8.3",
+    "wait-on": "^8.0.3"
+  }
+}

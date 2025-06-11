@@ -213,4 +213,4 @@ Xem thư mục `docs/wireframes/` chứa file hình mockup cho Dashboard, Tasks,
 
 - GitHub Issues: https://github.com/<your-org>/focustrack-desktop/issues
 - Slack channel: #focustrack-dev
-- Email: dev@yourorg.com 
+- Email: dev@yourorg.com # work-focus

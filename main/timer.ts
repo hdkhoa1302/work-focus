@@ -1,4 +1,5 @@
 import { ipcMain } from 'electron';
+import { TaskModel } from './models/task';
 import { SessionModel } from './models/session';
 
 let interval: NodeJS.Timeout | null = null;
@@ -6,6 +7,17 @@ let startTimestamp = 0;
 let remainingMs = 0;
 let currentType: 'focus' | 'break' = 'focus';
 let currentTaskId: string | undefined = undefined;
+
+async function checkTaskCompletion(taskId?: string) {
+  if (!taskId) return;
+  const completedCount = await SessionModel.countDocuments({ taskId, type: 'focus' });
+  const task = await TaskModel.findById(taskId);
+  if (task) {
+    const estimate = task.estimatedPomodoros || 1;
+    task.status = completedCount >= estimate ? 'done' : 'in-progress';
+    await task.save();
+  }
+}
 
 export function setupTimer() {
   ipcMain.on('timer-start', (event, args) => {
@@ -25,13 +37,14 @@ export function setupTimer() {
         event.sender.send('timer-tick', 0);
         event.sender.send('timer-done', { type: currentType });
         try {
-          await SessionModel.create({
+          const session = await SessionModel.create({
             taskId: currentTaskId,
             type: currentType,
             startTime: new Date(startTimestamp),
             endTime: new Date(),
             duration: duration / 1000,
           });
+          await checkTaskCompletion(currentTaskId);
         } catch (err) {
           console.error('Failed to save session:', err);
         }
@@ -63,13 +76,14 @@ export function setupTimer() {
           event.sender.send('timer-tick', 0);
           event.sender.send('timer-done', { type: currentType });
           try {
-            await SessionModel.create({
+            const session = await SessionModel.create({
               taskId: currentTaskId,
               type: currentType,
               startTime: new Date(startTimestamp),
               endTime: new Date(),
               duration: (remainingMs / 1000),
             });
+            await checkTaskCompletion(currentTaskId);
           } catch (err) {
             console.error('Failed to save session:', err);
           }

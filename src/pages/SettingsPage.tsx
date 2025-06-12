@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { 
   AiOutlineClockCircle, 
-  AiOutlineShield, 
   AiOutlineBell, 
   AiOutlineDatabase,
-  AiOutlineSave,
-  AiOutlineReload
+  AiOutlineSave
 } from 'react-icons/ai';
+import { FiShield, FiRefreshCw } from 'react-icons/fi';
 
 interface Config {
   pomodoro: {
@@ -143,7 +142,7 @@ const SettingsPage: React.FC = () => {
             onClick={fetchConfig}
             className="flex items-center space-x-2 px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors duration-200"
           >
-            <AiOutlineReload className="text-lg" />
+            <FiRefreshCw className="text-lg" />
             <span>Reset</span>
           </button>
           <button
@@ -264,8 +263,8 @@ const SettingsPage: React.FC = () => {
       {/* Website Blocker */}
       <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
         <div className="flex items-center space-x-3 mb-6">
-          <div className="w-10 h-10 bg-red-100 dark:bg-red-900 rounded-lg flex items-center justify-center">
-            <AiOutlineShield className="text-xl text-red-600 dark:text-red-400" />
+          <div className="w-10 h-10 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center">
+            <FiShield className="text-xl text-gray-600 dark:text-gray-300" />
           </div>
           <div>
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Website Blocker</h2>

@@ -5,9 +5,9 @@ import {
   AiOutlineClockCircle, 
   AiOutlineFire, 
   AiOutlineCalendar,
-  AiOutlineTrophy,
-  AiOutlineTarget
+  AiOutlineTrophy
 } from 'react-icons/ai';
+import { FiTarget } from 'react-icons/fi';
 
 const Dashboard: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -89,7 +89,7 @@ const Dashboard: React.FC = () => {
               <p className="text-3xl font-bold text-gray-900 dark:text-gray-100">{stats.totalTasks}</p>
             </div>
             <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center">
-              <AiOutlineTarget className="text-2xl text-blue-600 dark:text-blue-400" />
+              <FiTarget className="text-2xl text-blue-600 dark:text-blue-400" />
             </div>
           </div>
         </div>
@@ -168,7 +168,7 @@ const Dashboard: React.FC = () => {
             </div>
           ) : (
             <div className="text-center py-8">
-              <AiOutlineTarget className="text-4xl text-gray-400 mx-auto mb-4" />
+              <FiTarget className="text-4xl text-gray-400 mx-auto mb-4" />
               <p className="text-gray-600 dark:text-gray-400">No tasks yet. Create your first task to get started!</p>
             </div>
           )}
@@ -180,7 +180,7 @@ const Dashboard: React.FC = () => {
           
           <div className="space-y-4">
             <button className="w-full flex items-center space-x-3 p-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-200">
-              <AiOutlineTarget className="text-xl" />
+              <FiTarget className="text-xl" />
               <span className="font-medium">Create New Task</span>
             </button>
             

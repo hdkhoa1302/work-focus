@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { getTasks, deleteTask, updateTask, Task, getSessions, Session } from '../services/api';
 import TaskForm from '../components/TaskForm';
 import { 
-  AiOutlinePlay, 
   AiOutlineDelete, 
   AiOutlineEdit,
   AiOutlineCalendar,
@@ -11,6 +10,7 @@ import {
   AiOutlineClockCircle,
   AiOutlineFlag
 } from 'react-icons/ai';
+import { FiPlay } from 'react-icons/fi';
 
 const TasksPage: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -219,7 +219,7 @@ const TasksPage: React.FC = () => {
                           : 'bg-gradient-to-r from-green-500 to-emerald-500 text-white hover:from-green-600 hover:to-emerald-600 shadow-md hover:shadow-lg transform hover:scale-105'
                       }`}
                     >
-                      <AiOutlinePlay className="text-sm" />
+                      <FiPlay className="text-lg" />
                       <span>Start</span>
                     </button>
 

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { getTasks, Task as ApiTask } from '../services/api';
-import { AiOutlinePlay, AiOutlinePause, AiOutlineReload, AiOutlineFire, AiOutlineCoffee } from 'react-icons/ai';
+import { AiOutlineFire, AiOutlineCoffee } from 'react-icons/ai';
+import { FiPlay, FiPause, FiRefreshCw } from 'react-icons/fi';
 
 type Mode = 'focus' | 'break';
 
@@ -205,7 +206,7 @@ const TimerCard: React.FC = () => {
                     : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
                 }`}
               >
-                <AiOutlinePlay className="text-lg" />
+                <FiPlay className="text-lg" />
                 <span>Start</span>
               </button>
             ) : (
@@ -213,7 +214,7 @@ const TimerCard: React.FC = () => {
                 onClick={handlePause}
                 className="flex items-center space-x-2 px-6 py-3 rounded-xl font-medium bg-gradient-to-r from-yellow-500 to-orange-500 text-white hover:from-yellow-600 hover:to-orange-600 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200"
               >
-                <AiOutlinePause className="text-lg" />
+                <FiPause className="text-lg" />
                 <span>Pause</span>
               </button>
             )}
@@ -223,7 +224,7 @@ const TimerCard: React.FC = () => {
                 onClick={handleResume}
                 className="flex items-center space-x-2 px-6 py-3 rounded-xl font-medium bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:from-blue-600 hover:to-purple-600 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200"
               >
-                <AiOutlineReload className="text-lg" />
+                <FiRefreshCw className="text-lg" />
                 <span>Resume</span>
               </button>
             )}

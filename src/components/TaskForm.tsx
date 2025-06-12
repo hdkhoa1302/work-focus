@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { createTask, Task } from '../services/api';
+import { AiOutlinePlus, AiOutlineCalendar, AiOutlineFire } from 'react-icons/ai';
 
 interface TaskFormProps {
   onSave: (task: Task) => void;
@@ -11,72 +12,155 @@ const TaskForm: React.FC<TaskFormProps> = ({ onSave }) => {
   const [priority, setPriority] = useState(0);
   const [deadline, setDeadline] = useState('');
   const [estimatedPomodoros, setEstimatedPomodoros] = useState(1);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
-    const newTask = await createTask({
-      title,
-      description,
-      priority,
-      estimatedPomodoros,
-      deadline: deadline ? new Date(deadline).toISOString() : undefined,
-    });
-    onSave(newTask);
-    // Thông báo cho TimerCard reload danh sách Tasks
-    window.dispatchEvent(new Event('tasks-updated'));
-    // Reset form
-    setTitle('');
-    setDescription('');
-    setPriority(0);
-    setDeadline('');
-    setEstimatedPomodoros(1);
+    
+    try {
+      const newTask = await createTask({
+        title,
+        description,
+        priority,
+        estimatedPomodoros,
+        deadline: deadline ? new Date(deadline).toISOString() : undefined,
+      });
+      onSave(newTask);
+      window.dispatchEvent(new Event('tasks-updated'));
+      
+      // Reset form
+      setTitle('');
+      setDescription('');
+      setPriority(0);
+      setDeadline('');
+      setEstimatedPomodoros(1);
+      setIsExpanded(false);
+    } catch (error) {
+      console.error('Failed to create task:', error);
+    }
+  };
+
+  const priorityColors = {
+    0: 'bg-gray-100 text-gray-700 border-gray-300',
+    1: 'bg-blue-100 text-blue-700 border-blue-300',
+    2: 'bg-yellow-100 text-yellow-700 border-yellow-300',
+    3: 'bg-red-100 text-red-700 border-red-300'
+  };
+
+  const priorityLabels = {
+    0: 'Low',
+    1: 'Medium', 
+    2: 'High',
+    3: 'Urgent'
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-wrap gap-2 mb-4">
-      <input
-        type="text"
-        placeholder="Tiêu đề"
-        value={title}
-        onChange={e => setTitle(e.target.value)}
-        required
-        className="flex-1 border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring focus:border-blue-300"
-      />
-      <input
-        type="text"
-        placeholder="Mô tả"
-        value={description}
-        onChange={e => setDescription(e.target.value)}
-        className="flex-1 border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring focus:border-blue-300"
-      />
-      <input
-        type="number"
-        placeholder="Ưu tiên"
-        value={priority}
-        onChange={e => setPriority(Number(e.target.value))}
-        className="w-20 border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring focus:border-blue-300"
-      />
-      <input
-        type="number"
-        min={1}
-        placeholder="Số Pomodoro"
-        value={estimatedPomodoros}
-        onChange={e => setEstimatedPomodoros(Number(e.target.value))}
-        className="w-28 border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring focus:border-blue-300"
-      />
-      <input
-        type="datetime-local"
-        value={deadline}
-        onChange={e => setDeadline(e.target.value)}
-        className="w-44 border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring focus:border-blue-300"
-      />
-      <button
-        type="submit"
-        className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 focus:outline-none focus:ring"
-      >Thêm</button>
-    </form>
+    <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700 mb-6">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Create New Task</h2>
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+        >
+          {isExpanded ? 'Simple' : 'Advanced'}
+        </button>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Title - Always visible */}
+        <div>
+          <input
+            type="text"
+            placeholder="What do you want to accomplish?"
+            value={title}
+            onChange={e => setTitle(e.target.value)}
+            required
+            className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-3 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+          />
+        </div>
+
+        {/* Expanded fields */}
+        {isExpanded && (
+          <>
+            <div>
+              <textarea
+                placeholder="Add a description (optional)"
+                value={description}
+                onChange={e => setDescription(e.target.value)}
+                rows={3}
+                className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-3 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 resize-none"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Priority */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Priority
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {Object.entries(priorityLabels).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setPriority(Number(value))}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium border transition-all duration-200 ${
+                        priority === Number(value)
+                          ? priorityColors[Number(value) as keyof typeof priorityColors]
+                          : 'bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-400 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Estimated Pomodoros */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <AiOutlineFire className="inline mr-1" />
+                  Pomodoros
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={estimatedPomodoros}
+                  onChange={e => setEstimatedPomodoros(Number(e.target.value))}
+                  className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-3 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                />
+              </div>
+
+              {/* Deadline */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <AiOutlineCalendar className="inline mr-1" />
+                  Deadline
+                </label>
+                <input
+                  type="datetime-local"
+                  value={deadline}
+                  onChange={e => setDeadline(e.target.value)}
+                  className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-3 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                />
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Submit Button */}
+        <button
+          type="submit"
+          className="w-full md:w-auto flex items-center justify-center space-x-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white px-6 py-3 rounded-xl font-medium hover:from-blue-600 hover:to-purple-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
+        >
+          <AiOutlinePlus className="text-lg" />
+          <span>Create Task</span>
+        </button>
+      </form>
+    </div>
   );
 };
 
-export default TaskForm; 
+export default TaskForm;

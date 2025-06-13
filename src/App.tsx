@@ -1,22 +1,109 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { AuthProvider, useAuth } from './components/auth/AuthProvider';
+import AuthScreen from './components/auth/AuthScreen';
 import Sidebar from './components/Sidebar';
-import { Dashboard, TasksPage, ReportsPage, SettingsPage } from './pages';
-import TimerCard from './components/TimerCard';
-import { AiOutlineMoon, AiOutlineSun, AiOutlineBell } from 'react-icons/ai';
+import { Dashboard, ReportsPage, SettingsPage } from './pages';
+import KanbanBoard from './components/kanban/KanbanBoard';
+import TaskFormModal from './components/TaskFormModal';
+import CompactTimerCard from './components/timer/CompactTimerCard';
+import FloatingTimer from './components/timer/FloatingTimer';
+import { AiOutlineMoon, AiOutlineSun, AiOutlineBell, AiOutlineUser } from 'react-icons/ai';
+import { FiLogOut } from 'react-icons/fi';
+import { getTasks, Task } from './services/api';
 
-function App() {
-  // Dark mode state
+function AppContent() {
+  const { user, logout, isLoading } = useAuth();
   const [isDark, setIsDark] = useState(() => {
     const saved = localStorage.getItem('darkMode');
     return saved ? JSON.parse(saved) : false;
   });
+  const [showTaskModal, setShowTaskModal] = useState(false);
+  const [showFloatingTimer, setShowFloatingTimer] = useState(false);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [selectedTaskId, setSelectedTaskId] = useState<string>('');
+  
+  // Timer state
+  const [remaining, setRemaining] = useState<number>(25 * 60 * 1000);
+  const [mode, setMode] = useState<'focus' | 'break'>('focus');
+  const [isRunning, setIsRunning] = useState<boolean>(false);
+  const [config, setConfig] = useState<{ focus: number; break: number }>({ focus: 25, break: 5 });
 
   useEffect(() => {
     localStorage.setItem('darkMode', JSON.stringify(isDark));
     if (isDark) document.documentElement.classList.add('dark');
     else document.documentElement.classList.remove('dark');
   }, [isDark]);
+
+  useEffect(() => {
+    if (user) {
+      fetchTasks();
+      fetchConfig();
+    }
+  }, [user]);
+
+  const fetchTasks = async () => {
+    try {
+      const tasksData = await getTasks();
+      setTasks(tasksData);
+    } catch (error) {
+      console.error('Failed to fetch tasks:', error);
+    }
+  };
+
+  const fetchConfig = async () => {
+    try {
+      const response = await fetch('http://localhost:3000/api/config');
+      const data = await response.json();
+      if (data.pomodoro) {
+        setConfig(data.pomodoro);
+        setRemaining(data.pomodoro.focus * 60 * 1000);
+      }
+    } catch (err) {
+      console.error('Failed to fetch config:', err);
+    }
+  };
+
+  const handleStartTask = (taskId: string) => {
+    setSelectedTaskId(taskId);
+    setMode('focus');
+    const duration = config.focus * 60 * 1000;
+    setRemaining(duration);
+    setIsRunning(true);
+    window.ipc?.send('timer-start', { type: 'focus', duration, taskId });
+  };
+
+  const handleTimerStart = () => {
+    setIsRunning(true);
+    window.ipc?.send('timer-start', { 
+      type: mode, 
+      duration: remaining || config[mode] * 60 * 1000, 
+      taskId: selectedTaskId 
+    });
+  };
+
+  const handleTimerPause = () => {
+    window.ipc?.send('timer-pause');
+  };
+
+  const handleTimerResume = () => {
+    setIsRunning(true);
+    window.ipc?.send('timer-resume');
+  };
+
+  const selectedTask = tasks.find(task => task._id === selectedTaskId);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <AuthScreen />;
+  }
 
   return (
     <Router>
@@ -30,11 +117,10 @@ function App() {
                 <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
                   <span className="text-white font-bold text-sm">F</span>
                 </div>
-                <h1 className="text-xl font-bold text-gray-800 dark:text-gray-100">FocusTrack</h1>
-              </div>
-              <div className="hidden md:flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
-                <span>•</span>
-                <span>Productivity Dashboard</span>
+                <div>
+                  <h1 className="text-xl font-bold text-gray-800 dark:text-gray-100">FocusTrack</h1>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Welcome back, {user.name}</p>
+                </div>
               </div>
             </div>
             
@@ -51,15 +137,52 @@ function App() {
                   <AiOutlineMoon className="text-xl text-gray-600" />
                 }
               </button>
-              <div className="w-8 h-8 bg-gradient-to-r from-green-400 to-blue-500 rounded-full flex items-center justify-center">
-                <span className="text-white font-medium text-sm">U</span>
+              
+              {/* User Menu */}
+              <div className="relative group">
+                <button className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200">
+                  <div className="w-8 h-8 bg-gradient-to-r from-green-400 to-blue-500 rounded-full flex items-center justify-center">
+                    <span className="text-white font-medium text-sm">
+                      {user.name.charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300 hidden md:block">
+                    {user.name}
+                  </span>
+                </button>
+                
+                {/* Dropdown Menu */}
+                <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                  <div className="p-3 border-b border-gray-200 dark:border-gray-700">
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{user.name}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{user.email}</p>
+                  </div>
+                  <div className="p-2">
+                    <button
+                      onClick={logout}
+                      className="w-full flex items-center space-x-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors duration-200"
+                    >
+                      <FiLogOut className="w-4 h-4" />
+                      <span>Sign Out</span>
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </header>
 
-          {/* Timer Card - Fixed position */}
-          <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 transition-colors duration-200">
-            <TimerCard />
+          {/* Compact Timer */}
+          <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-3 transition-colors duration-200">
+            <CompactTimerCard
+              remaining={remaining}
+              mode={mode}
+              isRunning={isRunning}
+              onStart={handleTimerStart}
+              onPause={handleTimerPause}
+              onResume={handleTimerResume}
+              onExpand={() => setShowFloatingTimer(true)}
+              selectedTaskTitle={selectedTask?.title}
+            />
           </div>
 
           {/* Main Content */}
@@ -67,15 +190,55 @@ function App() {
             <div className="max-w-7xl mx-auto">
               <Routes>
                 <Route path="/" element={<Dashboard />} />
-                <Route path="/tasks" element={<TasksPage />} />
+                <Route 
+                  path="/tasks" 
+                  element={
+                    <KanbanBoard 
+                      onCreateTask={() => setShowTaskModal(true)}
+                      onStartTask={handleStartTask}
+                    />
+                  } 
+                />
                 <Route path="/reports" element={<ReportsPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
               </Routes>
             </div>
           </main>
         </div>
+
+        {/* Task Creation Modal */}
+        <TaskFormModal
+          isOpen={showTaskModal}
+          onClose={() => setShowTaskModal(false)}
+          onSave={(task) => {
+            setTasks(prev => [task, ...prev]);
+            fetchTasks();
+          }}
+        />
+
+        {/* Floating Timer */}
+        {showFloatingTimer && (
+          <FloatingTimer
+            remaining={remaining}
+            mode={mode}
+            isRunning={isRunning}
+            onStart={handleTimerStart}
+            onPause={handleTimerPause}
+            onResume={handleTimerResume}
+            onClose={() => setShowFloatingTimer(false)}
+            selectedTaskTitle={selectedTask?.title}
+          />
+        )}
       </div>
     </Router>
+  );
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
 

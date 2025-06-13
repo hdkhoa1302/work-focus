@@ -2,7 +2,7 @@
 import * as dotenv from 'dotenv';
 import { connectDB } from './db';
 import { setupAPI } from './api';
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, Tray, nativeImage } from 'electron';
 import * as path from 'path';
 import { setupTimer } from './timer';
 
@@ -11,8 +11,15 @@ dotenv.config();
 (async () => {
   await connectDB();
   setupAPI();
-  setupTimer();
 })();
+
+let tray: Tray;
+function createTray() {
+  const iconPath = path.join(__dirname, 'trayTemplate.png');
+  const icon = nativeImage.createFromPath(iconPath);
+  tray = new Tray(icon);
+  tray.setToolTip('FocusTrack');
+}
 
 function createWindow() {
   const isDev = process.env.NODE_ENV !== 'production';
@@ -32,7 +39,11 @@ function createWindow() {
   }
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  createWindow();
+  createTray();
+  setupTimer(tray);
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();

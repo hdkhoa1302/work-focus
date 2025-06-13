@@ -1,16 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { getTasks, deleteTask, updateTask, Task, getSessions, Session } from '../services/api';
 import TaskForm from '../components/TaskForm';
-import { 
-  AiOutlineDelete, 
-  AiOutlineEdit,
-  AiOutlineCalendar,
-  AiOutlineFire,
-  AiOutlineCheckCircle,
-  AiOutlineClockCircle,
-  AiOutlineFlag
-} from 'react-icons/ai';
-import { FiPlay } from 'react-icons/fi';
+import { AiOutlineDelete } from 'react-icons/ai';
+import { DragDropContext, Droppable, Draggable, DropResult, DroppableProvided, DraggableProvided } from '@hello-pangea/dnd';
 
 const TasksPage: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -103,7 +95,23 @@ const TasksPage: React.FC = () => {
     }
   };
 
+  const onDragEnd = (result: DropResult) => {
+    const { source, destination, draggableId } = result;
+    if (!destination || destination.droppableId === source.droppableId) return;
+    handleStatusChange(draggableId, destination.droppableId as Task['status']);
+  };
+
+  // Group tasks by explicit statuses
+  const statuses = ['todo', 'in-progress', 'done'] as const;
+  type Status = typeof statuses[number];
+  const tasksByStatus: Record<Status, Task[]> = {
+    todo: tasks.filter(t => t.status === 'todo'),
+    'in-progress': tasks.filter(t => t.status === 'in-progress'),
+    done: tasks.filter(t => t.status === 'done'),
+  };
+
   return (
+    <DragDropContext onDragEnd={onDragEnd}>
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
@@ -111,155 +119,73 @@ const TasksPage: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Tasks</h1>
           <p className="text-gray-600 dark:text-gray-400">Manage your tasks and track progress</p>
         </div>
-        
-        <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
-          {/* Filter */}
-          <select
-            value={filter}
-            onChange={e => setFilter(e.target.value as any)}
-            className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="all">All Tasks</option>
-            <option value="todo">To Do</option>
-            <option value="in-progress">In Progress</option>
-            <option value="done">Completed</option>
-          </select>
-
-          {/* Sort */}
-          <select
-            value={sortBy}
-            onChange={e => setSortBy(e.target.value as any)}
-            className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="created">Sort by Created</option>
-            <option value="priority">Sort by Priority</option>
-            <option value="deadline">Sort by Deadline</option>
-          </select>
-        </div>
+        {/* Toolbar: TaskForm only */}
+        <div><TaskForm onSave={task => setTasks(prev => [task, ...prev])} /></div>
       </div>
 
-      {/* Task Form */}
-      <TaskForm onSave={task => setTasks(prev => [task, ...prev])} />
-
-      {/* Tasks Grid */}
-      {sortedTasks.length > 0 ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {sortedTasks.map(task => {
-            const progress = getTaskProgress(task._id);
-            const isOverdue = task.deadline && new Date(task.deadline) < new Date() && task.status !== 'done';
-            
-            return (
-              <div key={task._id} className={`bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border transition-all duration-200 hover:shadow-md ${
-                isOverdue ? 'border-red-300 dark:border-red-700' : 'border-gray-200 dark:border-gray-700'
-              }`}>
-                {/* Header */}
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
-                      {task.title}
-                    </h3>
-                    {task.description && (
-                      <p className="text-gray-600 dark:text-gray-400 text-sm mb-3">
-                        {task.description}
-                      </p>
-                    )}
-                  </div>
-                  
-                  <div className="flex items-center space-x-2 ml-4">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(task.priority)}`}>
-                      {getPriorityLabel(task.priority)}
-                    </span>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(task.status)}`}>
-                      {task.status?.replace('-', ' ') || 'todo'}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Progress */}
-                <div className="mb-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Progress: {progress.completed}/{progress.estimated} Pomodoros
-                    </span>
-                    <span className="text-sm text-gray-500 dark:text-gray-400">
-                      {Math.round(progress.percentage)}%
-                    </span>
-                  </div>
-                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                    <div
-                      className="bg-gradient-to-r from-green-500 to-emerald-500 h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${Math.min(progress.percentage, 100)}%` }}
-                    />
-                  </div>
-                </div>
-
-                {/* Meta Info */}
-                <div className="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400 mb-4">
-                  <div className="flex items-center space-x-1">
-                    <AiOutlineFire className="text-orange-500" />
-                    <span>{task.estimatedPomodoros || 1} Pomodoros</span>
-                  </div>
-                  {task.deadline && (
-                    <div className={`flex items-center space-x-1 ${isOverdue ? 'text-red-500' : ''}`}>
-                      <AiOutlineCalendar />
-                      <span>{new Date(task.deadline).toLocaleDateString()}</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Actions */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <button
-                      onClick={() => window.dispatchEvent(new CustomEvent('start-task', { detail: { taskId: task._id } }))}
-                      disabled={task.status === 'done'}
-                      className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
-                        task.status === 'done'
-                          ? 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-                          : 'bg-gradient-to-r from-green-500 to-emerald-500 text-white hover:from-green-600 hover:to-emerald-600 shadow-md hover:shadow-lg transform hover:scale-105'
-                      }`}
-                    >
-                      <FiPlay className="text-lg" />
-                      <span>Start</span>
-                    </button>
-
-                    {task.status !== 'done' && (
-                      <button
-                        onClick={() => handleStatusChange(task._id, 'done')}
-                        className="flex items-center space-x-2 px-4 py-2 rounded-lg font-medium bg-blue-500 text-white hover:bg-blue-600 transition-all duration-200"
-                      >
-                        <AiOutlineCheckCircle className="text-sm" />
-                        <span>Complete</span>
-                      </button>
-                    )}
-                  </div>
-
-                  <button
-                    onClick={() => handleDelete(task._id)}
-                    className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900 rounded-lg transition-all duration-200"
-                  >
-                    <AiOutlineDelete className="text-lg" />
-                  </button>
-                </div>
+      {/* Kanban Board */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {statuses.map((status: Status) => (
+          <Droppable droppableId={status} key={status}>
+            {(provided: DroppableProvided) => (
+              <div ref={provided.innerRef} {...provided.droppableProps}
+                   className="bg-white dark:bg-gray-800 rounded-xl p-4">
+                <h2 className="text-lg font-semibold mb-3">
+                  {status === 'todo' ? 'To Do' : status === 'in-progress' ? 'In Progress' : 'Done'}
+                </h2>
+                {tasksByStatus[status].map((task: Task, index: number) => {
+                  const { completed, estimated, percentage } = getTaskProgress(task._id);
+                  return (
+                    <Draggable draggableId={task._id} index={index} key={task._id}>
+                      {(provided: DraggableProvided) => (
+                        <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}
+                             className="mb-3 p-4 rounded-lg border shadow-sm bg-gray-50 dark:bg-gray-700">
+                          <div className="flex items-center justify-between mb-2">
+                            <h3 className="font-medium text-gray-900 dark:text-gray-100">{task.title}</h3>
+                            <button onClick={() => handleDelete(task._id)}
+                                    className="text-red-500 hover:text-red-700">
+                              <AiOutlineDelete />
+                            </button>
+                          </div>
+                          {task.description && (
+                            <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">{task.description}</p>
+                          )}
+                          <div className="flex items-center justify-between text-sm mb-2">
+                            <span>Progress: {completed}/{estimated}</span>
+                            <span>{Math.round(percentage)}%</span>
+                          </div>
+                          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1 mb-3">
+                            <div className="bg-green-500 h-1 rounded-full"
+                                 style={{ width: `${Math.min(percentage, 100)}%` }} />
+                          </div>
+                          {status === 'in-progress' ? (
+                            <button
+                              onClick={() => window.dispatchEvent(new CustomEvent('start-task', { detail: { taskId: task._id } }))}
+                              className="w-full bg-blue-600 text-white py-1 rounded hover:bg-blue-700 text-center text-sm"
+                            >
+                              Start
+                            </button>
+                          ) : (
+                            <button
+                              disabled
+                              className="w-full bg-gray-300 text-gray-500 py-1 rounded text-center text-sm cursor-not-allowed"
+                            >
+                              Start
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </Draggable>
+                  );
+                })}
+                {provided.placeholder}
               </div>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="text-center py-12">
-          <AiOutlineClockCircle className="text-6xl text-gray-400 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
-            {filter === 'all' ? 'No tasks yet' : `No ${filter.replace('-', ' ')} tasks`}
-          </h3>
-          <p className="text-gray-600 dark:text-gray-400">
-            {filter === 'all' 
-              ? 'Create your first task to get started with the Pomodoro technique!'
-              : `You don't have any ${filter.replace('-', ' ')} tasks at the moment.`
-            }
-          </p>
-        </div>
-      )}
+            )}
+          </Droppable>
+        ))}
+      </div>
     </div>
+    </DragDropContext>
   );
 };
 

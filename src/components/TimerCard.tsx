@@ -114,44 +114,44 @@ const TimerCard: React.FC = () => {
           <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
             Current Task
           </label>
-          <select
+        <select
             className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-3 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-            value={selectedTaskId}
-            onChange={e => setSelectedTaskId(e.target.value)}
-          >
+          value={selectedTaskId}
+          onChange={e => setSelectedTaskId(e.target.value)}
+        >
             <option value="">Select a task to focus on</option>
-            {tasks.map(task => (
-              <option key={task._id} value={task._id}>{task.title}</option>
-            ))}
-          </select>
+          {tasks.map(task => (
+            <option key={task._id} value={task._id}>{task.title}</option>
+          ))}
+        </select>
           {selectedTask && (
             <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
               {selectedTask.description || 'No description'}
             </p>
           )}
-        </div>
+      </div>
 
         {/* Mode Selection */}
         <div className="flex bg-white dark:bg-gray-800 rounded-xl p-1 shadow-sm">
-          <button
+        <button
             className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 ${
               mode === 'focus' 
                 ? 'bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-md' 
                 : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
             }`}
-            onClick={() => switchMode('focus')}
+          onClick={() => switchMode('focus')}
             disabled={isRunning}
           >
             <AiOutlineFire className="text-lg" />
             <span className="font-medium">Focus</span>
           </button>
-          <button
+        <button
             className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 ${
               mode === 'break' 
                 ? 'bg-gradient-to-r from-green-500 to-teal-500 text-white shadow-md' 
                 : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
             }`}
-            onClick={() => switchMode('break')}
+          onClick={() => switchMode('break')}
             disabled={isRunning}
           >
             <AiOutlineCoffee className="text-lg" />
@@ -192,14 +192,14 @@ const TimerCard: React.FC = () => {
                 </span>
               </div>
             </div>
-          </div>
+      </div>
 
           {/* Control Buttons */}
           <div className="flex space-x-3">
-            {!isRunning ? (
-              <button
-                onClick={handleStart}
-                disabled={!selectedTaskId}
+        {!isRunning ? (
+          <button
+            onClick={handleStart}
+            disabled={!selectedTaskId}
                 className={`flex items-center space-x-2 px-6 py-3 rounded-xl font-medium transition-all duration-200 ${
                   selectedTaskId
                     ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white hover:from-green-600 hover:to-emerald-600 shadow-lg hover:shadow-xl transform hover:scale-105'
@@ -209,7 +209,7 @@ const TimerCard: React.FC = () => {
                 <FiPlay className="text-lg" />
                 <span>Start</span>
               </button>
-            ) : (
+        ) : (
               <button
                 onClick={handlePause}
                 className="flex items-center space-x-2 px-6 py-3 rounded-xl font-medium bg-gradient-to-r from-yellow-500 to-orange-500 text-white hover:from-yellow-600 hover:to-orange-600 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200"
@@ -217,9 +217,9 @@ const TimerCard: React.FC = () => {
                 <FiPause className="text-lg" />
                 <span>Pause</span>
               </button>
-            )}
+        )}
             
-            {!isRunning && remaining !== config[mode] * 60 * 1000 && (
+        {!isRunning && remaining !== config[mode] * 60 * 1000 && (
               <button
                 onClick={handleResume}
                 className="flex items-center space-x-2 px-6 py-3 rounded-xl font-medium bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:from-blue-600 hover:to-purple-600 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200"
@@ -227,7 +227,7 @@ const TimerCard: React.FC = () => {
                 <FiRefreshCw className="text-lg" />
                 <span>Resume</span>
               </button>
-            )}
+        )}
           </div>
         </div>
       </div>
@@ -235,4 +235,4 @@ const TimerCard: React.FC = () => {
   );
 };
 
-export default TimerCard;
+export default TimerCard; 

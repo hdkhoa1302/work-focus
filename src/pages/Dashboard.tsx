@@ -209,8 +209,8 @@ const Dashboard: React.FC = () => {
           )}
         </div>
       </div>
-    </div>
-  );
+  </div>
+);
 };
 
-export default Dashboard;
+export default Dashboard; 

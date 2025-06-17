@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { api } from '../../services/api';
 
 interface User {
   id: string;
@@ -40,22 +41,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // Check for existing session
     const checkSession = async () => {
       try {
-        const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
+        const token = localStorage.getItem('authToken');
         if (token) {
-          // Validate token with backend
-          const response = await fetch('http://localhost:3000/api/auth/validate', {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          if (response.ok) {
-            const userData = await response.json();
+          try {
+            const { data: userData } = await api.get<User>('/api/auth/validate');
             setUser(userData);
-          } else {
+            window.ipc.send('user-logged-in', { userId: userData.id });
+          } catch (err) {
+            console.error('Session validation failed:', err);
             localStorage.removeItem('authToken');
-            sessionStorage.removeItem('authToken');
           }
         }
       } catch (err) {
-        console.error('Session validation failed:', err);
+        console.error('Error checking session:', err);
       } finally {
         setIsLoading(false);
       }
@@ -68,27 +66,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch('http://localhost:3000/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Login failed');
-      }
-
-      const { user: userData, token } = await response.json();
+      const { data } = await api.post<{ message: string; user: User; token: string }>('/api/auth/login', { email, password });
+      const { user: userData, token } = data;
       
-      // Store token based on remember preference
-      if (remember) {
-        localStorage.setItem('authToken', token);
-      } else {
-        sessionStorage.setItem('authToken', token);
-      }
+      // Luôn lưu token vào localStorage để ghi nhớ đăng nhập
+      localStorage.setItem('authToken', token);
       
       setUser(userData);
+      window.ipc.send('user-logged-in', { userId: userData.id });
+      // Chuyển URL về root để vào Dashboard
+      if (typeof window !== 'undefined' && window.history && window.history.replaceState) {
+        window.history.replaceState({}, '', '/');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
       throw err;
@@ -101,20 +90,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch('http://localhost:3000/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, name })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Registration failed');
+      const { data } = await api.post<{ message: string; user: User; token: string }>('/api/auth/register', { email, password, name });
+      localStorage.setItem('authToken', data.token);
+      setUser(data.user);
+      window.ipc.send('user-logged-in', { userId: data.user.id });
+      // Chuyển URL về root để vào Dashboard
+      if (typeof window !== 'undefined' && window.history && window.history.replaceState) {
+        window.history.replaceState({}, '', '/');
       }
-
-      const { user: userData, token } = await response.json();
-      sessionStorage.setItem('authToken', token);
-      setUser(userData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed');
       throw err;
@@ -125,23 +108,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const logout = () => {
     localStorage.removeItem('authToken');
-    sessionStorage.removeItem('authToken');
     setUser(null);
   };
 
   const resetPassword = async (email: string) => {
     setError(null);
     try {
-      const response = await fetch('http://localhost:3000/api/auth/reset-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Password reset failed');
-      }
+      await api.post('/api/auth/reset-password', { email });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Password reset failed');
       throw err;

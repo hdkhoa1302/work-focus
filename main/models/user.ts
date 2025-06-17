@@ -1,7 +1,20 @@
-import { Schema, model } from 'mongoose';
+import { Schema, model, Document } from 'mongoose';
 import bcrypt from 'bcrypt';
 
-const UserSchema = new Schema(
+// Định nghĩa interface cho User document bao gồm methods
+interface IUser extends Document {
+  name: string;
+  email: string;
+  password: string;
+  avatar: string;
+  isEmailVerified: boolean;
+  resetPasswordToken?: string;
+  resetPasswordExpires?: Date;
+  lastLogin?: Date;
+  comparePassword(candidatePassword: string): Promise<boolean>;
+}
+
+const UserSchema = new Schema<IUser>(
   {
     name: { type: String, required: true, trim: true },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
@@ -42,4 +55,4 @@ UserSchema.methods.toJSON = function() {
   return userObject;
 };
 
-export const UserModel = model('User', UserSchema);
+export const UserModel = model<IUser>('User', UserSchema);

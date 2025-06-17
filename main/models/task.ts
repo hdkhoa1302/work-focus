@@ -3,6 +3,7 @@ import { Schema, model } from 'mongoose';
 const TaskSchema = new Schema(
   {
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    projectId: { type: Schema.Types.ObjectId, ref: 'Project', required: true },
     title: { type: String, required: true },
     description: { type: String, default: '' },
     tags: { type: [String], default: [] },

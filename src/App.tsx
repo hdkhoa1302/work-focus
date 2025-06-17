@@ -3,16 +3,19 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider, useAuth } from './components/auth/AuthProvider';
 import AuthScreen from './components/auth/AuthScreen';
 import Sidebar from './components/Sidebar';
-import { Dashboard, ReportsPage, SettingsPage } from './pages';
-import KanbanBoard from './components/kanban/KanbanBoard';
+import { Dashboard, ProjectsPage, ReportsPage, SettingsPage } from './pages';
 import TaskFormModal from './components/TaskFormModal';
 import CompactTimerCard from './components/timer/CompactTimerCard';
 import FloatingTimer from './components/timer/FloatingTimer';
+import ChatWidget from './components/ChatWidget';
 import { AiOutlineMoon, AiOutlineSun, AiOutlineBell, AiOutlineUser } from 'react-icons/ai';
 import { FiLogOut } from 'react-icons/fi';
 import { getTasks, Task } from './services/api';
+import { getConfig as apiGetConfig } from './services/api';
+import useLanguage from './hooks/useLanguage';
 
 function AppContent() {
+  const { t } = useLanguage();
   const { user, logout, isLoading } = useAuth();
   const [isDark, setIsDark] = useState(() => {
     const saved = localStorage.getItem('darkMode');
@@ -53,8 +56,7 @@ function AppContent() {
 
   const fetchConfig = async () => {
     try {
-      const response = await fetch('http://localhost:3000/api/config');
-      const data = await response.json();
+      const data = await apiGetConfig();
       if (data.pomodoro) {
         setConfig(data.pomodoro);
         setRemaining(data.pomodoro.focus * 60 * 1000);
@@ -74,11 +76,15 @@ function AppContent() {
   };
 
   const handleTimerStart = () => {
+    if (mode === 'focus' && !selectedTaskId) {
+      alert(t('timer.selectTask'));
+      return;
+    }
     setIsRunning(true);
-    window.ipc?.send('timer-start', { 
-      type: mode, 
-      duration: remaining || config[mode] * 60 * 1000, 
-      taskId: selectedTaskId 
+    window.ipc?.send('timer-start', {
+      type: mode,
+      duration: remaining || config[mode] * 60 * 1000,
+      taskId: mode === 'focus' ? selectedTaskId : undefined
     });
   };
 
@@ -90,6 +96,54 @@ function AppContent() {
     setIsRunning(true);
     window.ipc?.send('timer-resume');
   };
+
+  // Thêm listener IPC để cập nhật state timer
+  useEffect(() => {
+    const onTick = (_: any, ms: number) => setRemaining(ms);
+    const onDone = (_: any, { type }: any) => {
+      setIsRunning(false);
+      fetchTasks();
+      window.dispatchEvent(new Event('tasks-updated'));
+      if (type === 'focus') {
+        // Sau khi phiên tập trung kết thúc, chuyển UI sang phiên nghỉ, chờ user nhấn Start
+        const breakDuration = config.break * 60 * 1000;
+        setMode('break');
+        setRemaining(breakDuration);
+      }
+    };
+    const onPaused = (_: any, ms: number) => { setIsRunning(false); setRemaining(ms); };
+    window.ipc?.on('timer-tick', onTick);
+    window.ipc?.on('timer-done', onDone);
+    window.ipc?.on('timer-paused', onPaused);
+    return () => {
+      window.ipc?.removeListener('timer-tick', onTick);
+      window.ipc?.removeListener('timer-done', onDone);
+      window.ipc?.removeListener('timer-paused', onPaused);
+    };
+  }, [config]);
+
+  // Thêm listener cho sự kiện start-task từ Dashboard/TasksPage
+  useEffect(() => {
+    const onStartTaskEvent = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      handleStartTask(detail.taskId);
+    };
+    window.addEventListener('start-task', onStartTaskEvent);
+    return () => {
+      window.removeEventListener('start-task', onStartTaskEvent);
+    };
+  }, [config]);
+
+  // Thêm listener cho sự kiện create-task để mở modal tạo công việc
+  useEffect(() => {
+    const onCreateTaskEvent = () => {
+      setShowTaskModal(true);
+    };
+    window.addEventListener('create-task', onCreateTaskEvent);
+    return () => {
+      window.removeEventListener('create-task', onCreateTaskEvent);
+    };
+  }, []);
 
   const selectedTask = tasks.find(task => task._id === selectedTaskId);
 
@@ -118,8 +172,8 @@ function AppContent() {
                   <span className="text-white font-bold text-sm">F</span>
                 </div>
                 <div>
-                  <h1 className="text-xl font-bold text-gray-800 dark:text-gray-100">FocusTrack</h1>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Welcome back, {user.name}</p>
+                  <h1 className="text-xl font-bold text-gray-800 dark:text-gray-100">{t('common.appName')}</h1>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{t('common.welcome')}, {user.name}</p>
                 </div>
               </div>
             </div>
@@ -163,7 +217,7 @@ function AppContent() {
                       className="w-full flex items-center space-x-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors duration-200"
                     >
                       <FiLogOut className="w-4 h-4" />
-                      <span>Sign Out</span>
+                      <span>{t('common.signOut')}</span>
                     </button>
                   </div>
                 </div>
@@ -190,15 +244,7 @@ function AppContent() {
             <div className="max-w-7xl mx-auto">
               <Routes>
                 <Route path="/" element={<Dashboard />} />
-                <Route 
-                  path="/tasks" 
-                  element={
-                    <KanbanBoard 
-                      onCreateTask={() => setShowTaskModal(true)}
-                      onStartTask={handleStartTask}
-                    />
-                  } 
-                />
+                <Route path="/projects" element={<ProjectsPage />} />
                 <Route path="/reports" element={<ReportsPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
               </Routes>
@@ -229,6 +275,7 @@ function AppContent() {
             selectedTaskTitle={selectedTask?.title}
           />
         )}
+        <ChatWidget />
       </div>
     </Router>
   );

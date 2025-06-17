@@ -4,13 +4,16 @@ import { getTasks, updateTask, deleteTask, Task, getSessions, Session } from '..
 import KanbanCard from './KanbanCard';
 import { AiOutlinePlus, AiOutlineFilter, AiOutlineSearch } from 'react-icons/ai';
 import { FiGrid, FiList } from 'react-icons/fi';
+import useLanguage from '../../hooks/useLanguage';
 
 interface KanbanBoardProps {
   onCreateTask: () => void;
   onStartTask: (taskId: string) => void;
+  projectId?: string;
 }
 
-const KanbanBoard: React.FC<KanbanBoardProps> = ({ onCreateTask, onStartTask }) => {
+const KanbanBoard: React.FC<KanbanBoardProps> = ({ onCreateTask, onStartTask, projectId }) => {
+  const { t } = useLanguage();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -24,21 +27,24 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ onCreateTask, onStartTask }) 
   const statusConfig = {
     todo: {
       title: 'To Do',
-      color: 'bg-gray-100 dark:bg-gray-700',
-      headerColor: 'bg-gray-50 dark:bg-gray-800',
-      textColor: 'text-gray-700 dark:text-gray-300'
+      color: 'bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800',
+      headerColor: 'bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700',
+      textColor: 'text-gray-700 dark:text-gray-300',
+      borderColor: 'border-gray-300 dark:border-gray-600'
     },
     'in-progress': {
       title: 'In Progress',
-      color: 'bg-blue-100 dark:bg-blue-900',
-      headerColor: 'bg-blue-50 dark:bg-blue-800',
-      textColor: 'text-blue-700 dark:text-blue-300'
+      color: 'bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-blue-900 dark:to-indigo-900',
+      headerColor: 'bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-800 dark:to-indigo-800',
+      textColor: 'text-blue-700 dark:text-blue-300',
+      borderColor: 'border-blue-300 dark:border-blue-700'
     },
     done: {
       title: 'Done',
-      color: 'bg-green-100 dark:bg-green-900',
-      headerColor: 'bg-green-50 dark:bg-green-800',
-      textColor: 'text-green-700 dark:text-green-300'
+      color: 'bg-gradient-to-br from-green-100 to-emerald-100 dark:from-green-900 dark:to-emerald-900',
+      headerColor: 'bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-800 dark:to-emerald-800',
+      textColor: 'text-green-700 dark:text-green-300',
+      borderColor: 'border-green-300 dark:border-green-700'
     }
   };
 
@@ -46,13 +52,17 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ onCreateTask, onStartTask }) 
     fetchData();
     const handleTasksUpdated = () => fetchData();
     window.addEventListener('tasks-updated', handleTasksUpdated);
-    return () => window.removeEventListener('tasks-updated', handleTasksUpdated);
-  }, []);
+    window.ipc?.on('timer-done', handleTasksUpdated);
+    return () => {
+      window.removeEventListener('tasks-updated', handleTasksUpdated);
+      window.ipc?.removeListener('timer-done', handleTasksUpdated);
+    };
+  }, [projectId]);
 
   const fetchData = async () => {
     try {
       setIsLoading(true);
-      const [tasksData, sessionsData] = await Promise.all([getTasks(), getSessions()]);
+      const [tasksData, sessionsData] = await Promise.all([getTasks(projectId), getSessions()]);
       setTasks(tasksData);
       setSessions(sessionsData);
     } catch (error) {
@@ -108,7 +118,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ onCreateTask, onStartTask }) 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
       </div>
     );
   }
@@ -118,13 +128,13 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ onCreateTask, onStartTask }) 
       {/* Header Controls */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
         <div className="flex items-center space-x-4">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Tasks</h1>
-          <div className="flex items-center space-x-2 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+          <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400">{t('tasks.title')}</h1>
+          <div className="flex items-center space-x-2 bg-gray-100 dark:bg-gray-700 rounded-lg p-1 shadow-inner">
             <button
               onClick={() => setViewMode('kanban')}
-              className={`p-2 rounded-md transition-colors duration-200 ${
+              className={`p-2 rounded-md transition-all duration-300 ${
                 viewMode === 'kanban'
-                  ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-sm'
+                  ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-md transform scale-105'
                   : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
               }`}
             >
@@ -132,9 +142,9 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ onCreateTask, onStartTask }) 
             </button>
             <button
               onClick={() => setViewMode('list')}
-              className={`p-2 rounded-md transition-colors duration-200 ${
+              className={`p-2 rounded-md transition-all duration-300 ${
                 viewMode === 'list'
-                  ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-sm'
+                  ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-md transform scale-105'
                   : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
               }`}
             >
@@ -151,10 +161,10 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ onCreateTask, onStartTask }) 
             </div>
             <input
               type="text"
-              placeholder="Search tasks..."
+              placeholder={t('tasks.searchTasks')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm transition-all duration-300 hover:shadow-md"
             />
           </div>
 
@@ -163,13 +173,13 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ onCreateTask, onStartTask }) 
             <select
               value={filterPriority || ''}
               onChange={(e) => setFilterPriority(e.target.value ? Number(e.target.value) : null)}
-              className="pl-3 pr-8 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none"
+              className="pl-3 pr-8 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none shadow-sm transition-all duration-300 hover:shadow-md"
             >
-              <option value="">All Priorities</option>
-              <option value="3">Urgent</option>
-              <option value="2">High</option>
-              <option value="1">Medium</option>
-              <option value="0">Low</option>
+              <option value="">{t('tasks.priority.allPriorities')}</option>
+              <option value="3">{t('tasks.priority.urgent')}</option>
+              <option value="2">{t('tasks.priority.high')}</option>
+              <option value="1">{t('tasks.priority.medium')}</option>
+              <option value="0">{t('tasks.priority.low')}</option>
             </select>
             <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
               <AiOutlineFilter className="h-4 w-4 text-gray-400" />
@@ -179,10 +189,10 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ onCreateTask, onStartTask }) 
           {/* Create Task Button */}
           <button
             onClick={onCreateTask}
-            className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:from-blue-600 hover:to-purple-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 shadow-lg hover:shadow-xl"
+            className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:from-blue-600 hover:to-purple-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:translate-y-[-2px]"
           >
             <AiOutlinePlus className="w-4 h-4" />
-            <span>New Task</span>
+            <span>{t('tasks.createNewTask')}</span>
           </button>
         </div>
       </div>
@@ -200,19 +210,19 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ onCreateTask, onStartTask }) 
                   <div
                     ref={provided.innerRef}
                     {...provided.droppableProps}
-                    className={`rounded-xl border-2 transition-all duration-200 ${
+                    className={`rounded-xl border-2 transition-all duration-300 shadow-md hover:shadow-lg ${
                       snapshot.isDraggingOver
-                        ? 'border-blue-300 dark:border-blue-600 bg-blue-50 dark:bg-blue-900/20'
-                        : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800'
+                        ? `border-blue-300 dark:border-blue-600 ${config.color} bg-opacity-70`
+                        : `${config.borderColor} ${config.color}`
                     }`}
                   >
                     {/* Column Header */}
-                    <div className={`${config.headerColor} px-4 py-3 rounded-t-xl border-b border-gray-200 dark:border-gray-700`}>
+                    <div className={`${config.headerColor} px-4 py-3 rounded-t-xl border-b ${config.borderColor}`}>
                       <div className="flex items-center justify-between">
                         <h3 className={`font-semibold ${config.textColor}`}>
                           {config.title}
                         </h3>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${config.color} ${config.textColor}`}>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium bg-white dark:bg-gray-700 shadow-inner ${config.textColor}`}>
                           {statusTasks.length}
                         </span>
                       </div>
@@ -227,10 +237,10 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ onCreateTask, onStartTask }) 
                               ref={provided.innerRef}
                               {...provided.draggableProps}
                               {...provided.dragHandleProps}
-                              className={`transition-all duration-200 ${
+                              className={`transition-all duration-300 ${
                                 snapshot.isDragging
-                                  ? 'rotate-3 scale-105 shadow-xl'
-                                  : 'hover:shadow-md'
+                                  ? 'rotate-2 scale-105 shadow-xl z-10'
+                                  : 'hover:shadow-md hover:translate-y-[-2px]'
                               }`}
                             >
                               <KanbanCard
@@ -247,14 +257,14 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ onCreateTask, onStartTask }) 
                       {provided.placeholder}
                       
                       {statusTasks.length === 0 && (
-                        <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                          <p className="text-sm">No tasks in {config.title.toLowerCase()}</p>
+                        <div className="text-center py-8 text-gray-500 dark:text-gray-400 animate-pulse">
+                          <p className="text-sm">{t('tasks.noTasks')} {config.title.toLowerCase()}</p>
                           {status === 'todo' && (
                             <button
                               onClick={onCreateTask}
-                              className="mt-2 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 text-sm font-medium"
+                              className="mt-2 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 text-sm font-medium transition-all duration-300 hover:underline"
                             >
-                              Create your first task
+                              {t('tasks.createFirstTask')}
                             </button>
                           )}
                         </div>

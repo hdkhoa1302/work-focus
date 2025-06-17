@@ -3,8 +3,10 @@ import { getTasks, deleteTask, updateTask, Task, getSessions, Session } from '..
 import TaskForm from '../components/TaskForm';
 import { AiOutlineDelete } from 'react-icons/ai';
 import { DragDropContext, Droppable, Draggable, DropResult, DroppableProvided, DraggableProvided } from '@hello-pangea/dnd';
+import useLanguage from '../hooks/useLanguage';
 
 const TasksPage: React.FC = () => {
+  const { t } = useLanguage();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [filter, setFilter] = useState<'all' | 'todo' | 'in-progress' | 'done'>('all');
@@ -21,10 +23,16 @@ const TasksPage: React.FC = () => {
       }
     }
     fetchData();
+    window.addEventListener('tasks-updated', fetchData);
+    window.ipc?.on('timer-done', fetchData);
+    return () => {
+      window.removeEventListener('tasks-updated', fetchData);
+      window.ipc?.removeListener('timer-done', fetchData);
+    };
   }, []);
 
   const handleDelete = async (id: string) => {
-    if (window.confirm('Are you sure you want to delete this task?')) {
+    if (window.confirm(t('tasks.deleteTaskConfirm'))) {
       try {
         await deleteTask(id);
         setTasks(prev => prev.filter(t => t._id !== id));
@@ -116,8 +124,8 @@ const TasksPage: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Tasks</h1>
-          <p className="text-gray-600 dark:text-gray-400">Manage your tasks and track progress</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t('tasks.title')}</h1>
+          <p className="text-gray-600 dark:text-gray-400">{t('tasks.manageTasks')}</p>
         </div>
         {/* Toolbar: TaskForm only */}
         <div><TaskForm onSave={task => setTasks(prev => [task, ...prev])} /></div>
@@ -131,7 +139,7 @@ const TasksPage: React.FC = () => {
               <div ref={provided.innerRef} {...provided.droppableProps}
                    className="bg-white dark:bg-gray-800 rounded-xl p-4">
                 <h2 className="text-lg font-semibold mb-3">
-                  {status === 'todo' ? 'To Do' : status === 'in-progress' ? 'In Progress' : 'Done'}
+                  {t(`kanban.${status === 'in-progress' ? 'inProgress' : status}`)}
                 </h2>
                 {tasksByStatus[status].map((task: Task, index: number) => {
                   const { completed, estimated, percentage } = getTaskProgress(task._id);
@@ -160,7 +168,7 @@ const TasksPage: React.FC = () => {
                           </div>
                           {status === 'in-progress' ? (
                             <button
-                              onClick={() => window.dispatchEvent(new CustomEvent('start-task', { detail: { taskId: task._id } }))}
+                              onClick={() => window.dispatchEvent(new CustomEvent('start-task', { detail: { taskId: task._id, projectId: task.projectId } }))}
                               className="w-full bg-blue-600 text-white py-1 rounded hover:bg-blue-700 text-center text-sm"
                             >
                               Start

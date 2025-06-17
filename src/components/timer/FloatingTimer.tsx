@@ -156,7 +156,7 @@ const FloatingTimer: React.FC<FloatingTimerProps> = ({
       </div>
 
       {/* Task Info */}
-      {selectedTaskTitle && mode === 'focus' && (
+      {mode === 'focus' && selectedTaskTitle && (
         <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
           <p className="text-sm text-gray-600 dark:text-gray-400">Working on:</p>
           <p className="font-medium text-gray-900 dark:text-gray-100 truncate">{selectedTaskTitle}</p>

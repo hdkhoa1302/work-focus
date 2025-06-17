@@ -86,6 +86,128 @@ export function setupAPI() {
     }
   });
 
+  // AI analysis endpoint - Phân tích hiệu suất người dùng
+  app.post('/api/ai/analyze', authenticateToken, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const [tasks, sessions, projects] = await Promise.all([
+        TaskModel.find({ userId }),
+        SessionModel.find({ userId }),
+        ProjectModel.find({ userId })
+      ]);
+
+      const completedTasks = tasks.filter(t => t.status === 'done').length;
+      const totalTasks = tasks.length;
+      const completionRate = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
+      
+      const focusSessions = sessions.filter(s => s.type === 'focus');
+      const totalFocusTime = focusSessions.reduce((total, s) => total + (s.duration || 0), 0);
+      
+      const activeProjects = projects.filter(p => !p.completed).length;
+      const completedProjects = projects.filter(p => p.completed).length;
+
+      // Tạo phân tích bằng AI
+      const analysisPrompt = `
+Phân tích hiệu suất làm việc của người dùng:
+
+Thống kê:
+- Tổng số task: ${totalTasks}
+- Task hoàn thành: ${completedTasks}
+- Tỷ lệ hoàn thành: ${completionRate.toFixed(1)}%
+- Dự án đang thực hiện: ${activeProjects}
+- Dự án hoàn thành: ${completedProjects}
+- Tổng thời gian tập trung: ${Math.round(totalFocusTime / 60)} phút
+- Số phiên Pomodoro: ${focusSessions.length}
+
+Hãy đưa ra:
+1. Đánh giá tổng quan về hiệu suất
+2. Điểm mạnh đã thể hiện
+3. Những điểm cần cải thiện
+4. Gợi ý cụ thể để nâng cao hiệu quả
+5. Lời động viên tích cực
+
+Trả lời bằng tiếng Việt, thân thiện và có cấu trúc rõ ràng.
+`;
+
+      const aiResponse = await chat({
+        model: 'gemini-2.0-flash',
+        contents: analysisPrompt
+      });
+
+      res.json({
+        stats: {
+          totalTasks,
+          completedTasks,
+          completionRate,
+          activeProjects,
+          completedProjects,
+          totalFocusTime: Math.round(totalFocusTime / 60),
+          totalSessions: focusSessions.length
+        },
+        analysis: aiResponse.text,
+        recommendations: [
+          completionRate < 50 ? 'Tập trung hoàn thành các task đã tạo' : null,
+          activeProjects > 5 ? 'Giảm số dự án đang thực hiện' : null,
+          focusSessions.length < 10 ? 'Tăng cường sử dụng Pomodoro' : null
+        ].filter(Boolean)
+      });
+    } catch (error) {
+      console.error('Error analyzing performance:', error);
+      res.status(500).json({ message: 'Failed to analyze performance' });
+    }
+  });
+
+  // AI encouragement endpoint - Động viên khi hoàn thành task
+  app.post('/api/ai/encourage', authenticateToken, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const { taskId } = req.body;
+      
+      const task = await TaskModel.findOne({ _id: taskId, userId });
+      if (!task) {
+        return res.status(404).json({ message: 'Task not found' });
+      }
+
+      const project = await ProjectModel.findById(task.projectId);
+      const userTasks = await TaskModel.find({ userId });
+      const completedTasks = userTasks.filter(t => t.status === 'done').length;
+      const sessions = await SessionModel.find({ userId, type: 'focus' });
+
+      const encouragementPrompt = `
+Người dùng vừa hoàn thành task: "${task.title}"
+Thuộc dự án: "${project?.name || 'Unknown'}"
+
+Thống kê hiện tại:
+- Tổng task hoàn thành: ${completedTasks}
+- Tổng phiên Pomodoro: ${sessions.length}
+- Mô tả task: ${task.description || 'Không có mô tả'}
+
+Hãy tạo lời động viên bao gồm:
+1. Lời chúc mừng nhiệt tình và cụ thể
+2. Nhận xét về thành tích (nếu đáng chú ý)
+3. Động lực cho bước tiếp theo
+4. Emoji phù hợp để tạo không khí tích cực
+
+Trả lời ngắn gọn, tích cực và cá nhân hóa.
+`;
+
+      const aiResponse = await chat({
+        model: 'gemini-2.0-flash',
+        contents: encouragementPrompt
+      });
+
+      res.json({
+        message: aiResponse.text,
+        achievement: completedTasks % 5 === 0 ? `Milestone: ${completedTasks} tasks completed!` : null
+      });
+    } catch (error) {
+      console.error('Error generating encouragement:', error);
+      res.status(500).json({ 
+        message: '🎉 Chúc mừng bạn đã hoàn thành task! Tiếp tục phát huy nhé!' 
+      });
+    }
+  });
+
   // Tasks CRUD
   app.get('/api/tasks', async (req, res) => {
     try {
@@ -128,6 +250,29 @@ export function setupAPI() {
       if (!task) {
         return res.status(404).json({ message: 'Task not found' });
       }
+
+      // Nếu task được đánh dấu hoàn thành, tạo động viên
+      if (req.body.status === 'done') {
+        try {
+          const encouragementResponse = await fetch(`http://localhost:${port}/api/ai/encourage`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': req.headers.authorization || ''
+            },
+            body: JSON.stringify({ taskId: task._id })
+          });
+          
+          if (encouragementResponse.ok) {
+            const encouragement = await encouragementResponse.json();
+            // Có thể gửi notification hoặc lưu vào database
+            console.log('Encouragement generated:', encouragement.message);
+          }
+        } catch (error) {
+          console.error('Failed to generate encouragement:', error);
+        }
+      }
+
       res.json(task);
     } catch (error) {
       console.error('Error updating task:', error);

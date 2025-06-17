@@ -137,4 +137,34 @@ export interface SuggestResponse {
 export const getSuggestions = async (): Promise<SuggestResponse> => {
   const resp = await api.post<SuggestResponse>('/api/ai/suggest');
   return resp.data;
-}; 
+};
+
+// AI Analysis APIs
+export interface AnalysisResponse {
+  stats: {
+    totalTasks: number;
+    completedTasks: number;
+    completionRate: number;
+    activeProjects: number;
+    completedProjects: number;
+    totalFocusTime: number;
+    totalSessions: number;
+  };
+  analysis: string;
+  recommendations: string[];
+}
+
+export const getAnalysis = async (): Promise<AnalysisResponse> => {
+  const resp = await api.post<AnalysisResponse>('/api/ai/analyze');
+  return resp.data;
+};
+
+export interface EncouragementResponse {
+  message: string;
+  achievement?: string;
+}
+
+export const getEncouragement = async (taskId: string): Promise<EncouragementResponse> => {
+  const resp = await api.post<EncouragementResponse>('/api/ai/encourage', { taskId });
+  return resp.data;
+};

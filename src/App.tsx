@@ -4,13 +4,15 @@ import { AuthProvider, useAuth } from './components/auth/AuthProvider';
 import AuthScreen from './components/auth/AuthScreen';
 import Sidebar from './components/Sidebar';
 import { Dashboard, ProjectsPage, ReportsPage, SettingsPage } from './pages';
+import ChatPage from './pages/ChatPage';
 import TaskFormModal from './components/TaskFormModal';
 import CompactTimerCard from './components/timer/CompactTimerCard';
 import FloatingTimer from './components/timer/FloatingTimer';
 import ChatWidget from './components/ChatWidget';
+import EncouragementModal from './components/EncouragementModal';
 import { AiOutlineMoon, AiOutlineSun, AiOutlineBell, AiOutlineUser } from 'react-icons/ai';
 import { FiLogOut } from 'react-icons/fi';
-import { getTasks, Task } from './services/api';
+import { getTasks, Task, getEncouragement } from './services/api';
 import { getConfig as apiGetConfig } from './services/api';
 import useLanguage from './hooks/useLanguage';
 
@@ -25,6 +27,10 @@ function AppContent() {
   const [showFloatingTimer, setShowFloatingTimer] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState<string>('');
+  
+  // Encouragement modal state
+  const [showEncouragement, setShowEncouragement] = useState(false);
+  const [completedTask, setCompletedTask] = useState<{ id: string; title: string } | null>(null);
   
   // Timer state
   const [remaining, setRemaining] = useState<number>(25 * 60 * 1000);
@@ -145,6 +151,19 @@ function AppContent() {
     };
   }, []);
 
+  // Thêm listener cho sự kiện task-completed để hiển thị encouragement
+  useEffect(() => {
+    const onTaskCompleted = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      setCompletedTask({ id: detail.taskId, title: detail.taskTitle });
+      setShowEncouragement(true);
+    };
+    window.addEventListener('task-completed', onTaskCompleted);
+    return () => {
+      window.removeEventListener('task-completed', onTaskCompleted);
+    };
+  }, []);
+
   const selectedTask = tasks.find(task => task._id === selectedTaskId);
 
   if (isLoading) {
@@ -162,120 +181,141 @@ function AppContent() {
   return (
     <Router>
       <div className="flex h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
-        <Sidebar />
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Header */}
-          <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between transition-colors duration-200">
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-                  <span className="text-white font-bold text-sm">F</span>
-                </div>
-                <div>
-                  <h1 className="text-xl font-bold text-gray-800 dark:text-gray-100">{t('common.appName')}</h1>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">{t('common.welcome')}, {user.name}</p>
-                </div>
-              </div>
-            </div>
-            
-            <div className="flex items-center space-x-3">
-              <button className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200">
-                <AiOutlineBell className="text-xl text-gray-600 dark:text-gray-400" />
-              </button>
-              <button
-                onClick={() => setIsDark(!isDark)}
-                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200"
-              >
-                {isDark ? 
-                  <AiOutlineSun className="text-xl text-yellow-400" /> : 
-                  <AiOutlineMoon className="text-xl text-gray-600" />
-                }
-              </button>
-              
-              {/* User Menu */}
-              <div className="relative group">
-                <button className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200">
-                  <div className="w-8 h-8 bg-gradient-to-r from-green-400 to-blue-500 rounded-full flex items-center justify-center">
-                    <span className="text-white font-medium text-sm">
-                      {user.name.charAt(0).toUpperCase()}
-                    </span>
+        <Routes>
+          <Route path="/chat" element={<ChatPage />} />
+          <Route path="/*" element={
+            <>
+              <Sidebar />
+              <div className="flex-1 flex flex-col overflow-hidden">
+                {/* Header */}
+                <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between transition-colors duration-200">
+                  <div className="flex items-center space-x-4">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                        <span className="text-white font-bold text-sm">F</span>
+                      </div>
+                      <div>
+                        <h1 className="text-xl font-bold text-gray-800 dark:text-gray-100">{t('common.appName')}</h1>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">{t('common.welcome')}, {user.name}</p>
+                      </div>
+                    </div>
                   </div>
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300 hidden md:block">
-                    {user.name}
-                  </span>
-                </button>
-                
-                {/* Dropdown Menu */}
-                <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-                  <div className="p-3 border-b border-gray-200 dark:border-gray-700">
-                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{user.name}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">{user.email}</p>
-                  </div>
-                  <div className="p-2">
-                    <button
-                      onClick={logout}
-                      className="w-full flex items-center space-x-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors duration-200"
-                    >
-                      <FiLogOut className="w-4 h-4" />
-                      <span>{t('common.signOut')}</span>
+                  
+                  <div className="flex items-center space-x-3">
+                    <button className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200">
+                      <AiOutlineBell className="text-xl text-gray-600 dark:text-gray-400" />
                     </button>
+                    <button
+                      onClick={() => setIsDark(!isDark)}
+                      className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200"
+                    >
+                      {isDark ? 
+                        <AiOutlineSun className="text-xl text-yellow-400" /> : 
+                        <AiOutlineMoon className="text-xl text-gray-600" />
+                      }
+                    </button>
+                    
+                    {/* User Menu */}
+                    <div className="relative group">
+                      <button className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200">
+                        <div className="w-8 h-8 bg-gradient-to-r from-green-400 to-blue-500 rounded-full flex items-center justify-center">
+                          <span className="text-white font-medium text-sm">
+                            {user.name.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300 hidden md:block">
+                          {user.name}
+                        </span>
+                      </button>
+                      
+                      {/* Dropdown Menu */}
+                      <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                        <div className="p-3 border-b border-gray-200 dark:border-gray-700">
+                          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{user.name}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">{user.email}</p>
+                        </div>
+                        <div className="p-2">
+                          <button
+                            onClick={logout}
+                            className="w-full flex items-center space-x-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors duration-200"
+                          >
+                            <FiLogOut className="w-4 h-4" />
+                            <span>{t('common.signOut')}</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
+                </header>
+
+                {/* Compact Timer */}
+                <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-3 transition-colors duration-200">
+                  <CompactTimerCard
+                    remaining={remaining}
+                    mode={mode}
+                    isRunning={isRunning}
+                    onStart={handleTimerStart}
+                    onPause={handleTimerPause}
+                    onResume={handleTimerResume}
+                    onExpand={() => setShowFloatingTimer(true)}
+                    selectedTaskTitle={selectedTask?.title}
+                  />
                 </div>
+
+                {/* Main Content */}
+                <main className="flex-1 overflow-auto p-6">
+                  <div className="max-w-7xl mx-auto">
+                    <Routes>
+                      <Route path="/" element={<Dashboard />} />
+                      <Route path="/projects" element={<ProjectsPage />} />
+                      <Route path="/reports" element={<ReportsPage />} />
+                      <Route path="/settings" element={<SettingsPage />} />
+                    </Routes>
+                  </div>
+                </main>
               </div>
-            </div>
-          </header>
 
-          {/* Compact Timer */}
-          <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-3 transition-colors duration-200">
-            <CompactTimerCard
-              remaining={remaining}
-              mode={mode}
-              isRunning={isRunning}
-              onStart={handleTimerStart}
-              onPause={handleTimerPause}
-              onResume={handleTimerResume}
-              onExpand={() => setShowFloatingTimer(true)}
-              selectedTaskTitle={selectedTask?.title}
-            />
-          </div>
+              {/* Task Creation Modal */}
+              <TaskFormModal
+                isOpen={showTaskModal}
+                onClose={() => setShowTaskModal(false)}
+                onSave={(task) => {
+                  setTasks(prev => [task, ...prev]);
+                  fetchTasks();
+                }}
+              />
 
-          {/* Main Content */}
-          <main className="flex-1 overflow-auto p-6">
-            <div className="max-w-7xl mx-auto">
-              <Routes>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/projects" element={<ProjectsPage />} />
-                <Route path="/reports" element={<ReportsPage />} />
-                <Route path="/settings" element={<SettingsPage />} />
-              </Routes>
-            </div>
-          </main>
-        </div>
+              {/* Floating Timer */}
+              {showFloatingTimer && (
+                <FloatingTimer
+                  remaining={remaining}
+                  mode={mode}
+                  isRunning={isRunning}
+                  onStart={handleTimerStart}
+                  onPause={handleTimerPause}
+                  onResume={handleTimerResume}
+                  onClose={() => setShowFloatingTimer(false)}
+                  selectedTaskTitle={selectedTask?.title}
+                />
+              )}
 
-        {/* Task Creation Modal */}
-        <TaskFormModal
-          isOpen={showTaskModal}
-          onClose={() => setShowTaskModal(false)}
-          onSave={(task) => {
-            setTasks(prev => [task, ...prev]);
-            fetchTasks();
-          }}
-        />
+              {/* Encouragement Modal */}
+              {showEncouragement && completedTask && (
+                <EncouragementModal
+                  isOpen={showEncouragement}
+                  onClose={() => {
+                    setShowEncouragement(false);
+                    setCompletedTask(null);
+                  }}
+                  taskId={completedTask.id}
+                  taskTitle={completedTask.title}
+                />
+              )}
 
-        {/* Floating Timer */}
-        {showFloatingTimer && (
-          <FloatingTimer
-            remaining={remaining}
-            mode={mode}
-            isRunning={isRunning}
-            onStart={handleTimerStart}
-            onPause={handleTimerPause}
-            onResume={handleTimerResume}
-            onClose={() => setShowFloatingTimer(false)}
-            selectedTaskTitle={selectedTask?.title}
-          />
-        )}
-        <ChatWidget />
+              <ChatWidget />
+            </>
+          } />
+        </Routes>
       </div>
     </Router>
   );

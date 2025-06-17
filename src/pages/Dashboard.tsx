@@ -8,8 +8,10 @@ import {
   AiOutlineTrophy
 } from 'react-icons/ai';
 import { FiTarget } from 'react-icons/fi';
+import useLanguage from '../hooks/useLanguage';
 
 const Dashboard: React.FC = () => {
+  const { t } = useLanguage();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [stats, setStats] = useState({
@@ -69,8 +71,8 @@ const Dashboard: React.FC = () => {
       <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-8 text-white">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold mb-2">Welcome back!</h1>
-            <p className="text-blue-100 text-lg">Ready to boost your productivity today?</p>
+            <h1 className="text-3xl font-bold mb-2">{t('dashboard.welcome')}</h1>
+            <p className="text-blue-100 text-lg">{t('dashboard.welcomeMessage')}</p>
           </div>
           <div className="hidden md:block">
             <div className="w-20 h-20 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
@@ -85,7 +87,7 @@ const Dashboard: React.FC = () => {
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Tasks</p>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{t('dashboard.totalTasks')}</p>
               <p className="text-3xl font-bold text-gray-900 dark:text-gray-100">{stats.totalTasks}</p>
             </div>
             <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center">
@@ -97,9 +99,9 @@ const Dashboard: React.FC = () => {
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Completed</p>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{t('dashboard.completed')}</p>
               <p className="text-3xl font-bold text-gray-900 dark:text-gray-100">{stats.completedTasks}</p>
-              <p className="text-sm text-green-600 dark:text-green-400">{completionRate.toFixed(1)}% completion rate</p>
+              <p className="text-sm text-green-600 dark:text-green-400">{t('dashboard.completionRate', { rate: completionRate.toFixed(1) })}</p>
             </div>
             <div className="w-12 h-12 bg-green-100 dark:bg-green-900 rounded-lg flex items-center justify-center">
               <AiOutlineCheckCircle className="text-2xl text-green-600 dark:text-green-400" />
@@ -110,7 +112,7 @@ const Dashboard: React.FC = () => {
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Today's Pomodoros</p>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{t('dashboard.todaysPomodoros')}</p>
               <p className="text-3xl font-bold text-gray-900 dark:text-gray-100">{stats.todayPomodoros}</p>
             </div>
             <div className="w-12 h-12 bg-red-100 dark:bg-red-900 rounded-lg flex items-center justify-center">
@@ -122,7 +124,7 @@ const Dashboard: React.FC = () => {
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Focus Time</p>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{t('dashboard.focusTime')}</p>
               <p className="text-3xl font-bold text-gray-900 dark:text-gray-100">{stats.focusTime}m</p>
             </div>
             <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900 rounded-lg flex items-center justify-center">
@@ -137,9 +139,9 @@ const Dashboard: React.FC = () => {
         {/* Recent Tasks */}
         <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Recent Tasks</h2>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">{t('dashboard.recentTasks')}</h2>
             <button className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium">
-              View All
+              {t('dashboard.viewAll')}
             </button>
           </div>
           
@@ -154,14 +156,14 @@ const Dashboard: React.FC = () => {
                     }`}></div>
                     <div>
                       <h3 className="font-medium text-gray-900 dark:text-gray-100">{task.title}</h3>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">{task.description || 'No description'}</p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">{task.description || t('dashboard.noDescription')}</p>
                     </div>
                   </div>
                   <button
-                    onClick={() => window.dispatchEvent(new CustomEvent('start-task', { detail: { taskId: task._id } }))}
+                    onClick={() => window.dispatchEvent(new CustomEvent('start-task', { detail: { taskId: task._id, projectId: task.projectId } }))}
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200"
                   >
-                    Start
+                    {t('dashboard.start')}
                   </button>
                 </div>
               ))}
@@ -169,29 +171,29 @@ const Dashboard: React.FC = () => {
           ) : (
             <div className="text-center py-8">
               <FiTarget className="text-4xl text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600 dark:text-gray-400">No tasks yet. Create your first task to get started!</p>
+              <p className="text-gray-600 dark:text-gray-400">{t('dashboard.noTasksYet')}</p>
             </div>
           )}
         </div>
 
         {/* Quick Actions */}
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-6">Quick Actions</h2>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-6">{t('dashboard.quickActions')}</h2>
           
           <div className="space-y-4">
             <button className="w-full flex items-center space-x-3 p-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-200">
               <FiTarget className="text-xl" />
-              <span className="font-medium">Create New Task</span>
+              <span className="font-medium">{t('dashboard.createNewTask')}</span>
             </button>
             
             <button className="w-full flex items-center space-x-3 p-4 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:from-green-600 hover:to-green-700 transition-all duration-200">
               <AiOutlineFire className="text-xl" />
-              <span className="font-medium">Start Focus Session</span>
+              <span className="font-medium">{t('dashboard.startFocusSession')}</span>
             </button>
             
             <button className="w-full flex items-center space-x-3 p-4 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg hover:from-purple-600 hover:to-purple-700 transition-all duration-200">
               <AiOutlineTrophy className="text-xl" />
-              <span className="font-medium">View Reports</span>
+              <span className="font-medium">{t('dashboard.viewReports')}</span>
             </button>
           </div>
 
@@ -201,8 +203,8 @@ const Dashboard: React.FC = () => {
               <div className="flex items-center space-x-3">
                 <AiOutlineTrophy className="text-2xl" />
                 <div>
-                  <p className="font-bold">Achievement Unlocked!</p>
-                  <p className="text-sm opacity-90">Productive Day - 4+ Pomodoros</p>
+                  <p className="font-bold">{t('dashboard.achievementUnlocked')}</p>
+                  <p className="text-sm opacity-90">{t('dashboard.productiveDay')}</p>
                 </div>
               </div>
             </div>

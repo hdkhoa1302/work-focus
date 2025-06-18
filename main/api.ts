@@ -56,21 +56,21 @@ export function setupAPI() {
 
 Tôi có thể giúp bạn:
 📋 **Quản lý dự án & công việc**
-• Phân tích mô tả công việc và tạo dự án
-• Chia nhỏ dự án thành các task cụ thể
-• Theo dõi tiến độ và đưa ra gợi ý
+• Phân tích mô tả công việc và tạo dự án chi tiết
+• Chia nhỏ dự án thành các task cụ thể với timeline rõ ràng
+• Theo dõi tiến độ và đưa ra gợi ý tối ưu hóa
 
 🎨 **Whiteboard thông minh**
 • Ghi nhớ các quyết định quan trọng
-• Lưu trữ ý tưởng và kế hoạch
+• Lưu trữ ý tưởng và kế hoạch dài hạn
 • Theo dõi các mục tiêu đã đặt ra
 
-📊 **Phân tích & động viên**
-• Đánh giá hiệu suất làm việc
-• Đưa ra lời khuyên cải thiện
-• Động viên khi hoàn thành mục tiêu
+📊 **Phân tích & động viên dựa trên khoa học**
+• Đánh giá hiệu suất làm việc theo phương pháp SMART
+• Áp dụng nguyên lý Flow State và Pomodoro
+• Động viên kịp thời với hệ thống thành tích
 
-Hãy bắt đầu bằng cách mô tả công việc hoặc dự án bạn muốn thực hiện!`,
+Hãy bắt đầu bằng cách mô tả chi tiết dự án hoặc công việc bạn muốn thực hiện!`,
           timestamp: new Date(),
           type: 'text'
         }],
@@ -138,7 +138,7 @@ Hãy bắt đầu bằng cách mô tả công việc hoặc dự án bạn muố
     }
   });
 
-  // AI chat endpoint with conversation context
+  // Enhanced AI chat endpoint with improved project creation
   app.post('/api/ai/chat', authenticateToken, async (req, res) => {
     try {
       const userId = (req as any).userId;
@@ -186,31 +186,58 @@ Hãy bắt đầu bằng cách mô tả công việc hoặc dự án bạn muố
       let responseType = 'text';
       let responseData = null;
 
-      // Check for project creation intent
+      // Enhanced project creation intent detection
       if (message.toLowerCase().includes('tạo dự án') || 
-          message.toLowerCase().includes('phân tích') && message.toLowerCase().includes('dự án')) {
+          message.toLowerCase().includes('phân tích') && message.toLowerCase().includes('dự án') ||
+          message.toLowerCase().includes('lập kế hoạch') ||
+          message.toLowerCase().includes('project') ||
+          message.toLowerCase().includes('nhiệm vụ') && message.length > 50) {
         
         const analysisPrompt = `
-Phân tích mô tả công việc sau và tạo cấu trúc dự án chi tiết:
-"${message}"
+Bạn là chuyên gia quản lý dự án AI. Phân tích mô tả công việc sau và tạo cấu trúc dự án chi tiết theo phương pháp SMART:
 
-Lịch sử cuộc trò chuyện:
+Mô tả từ người dùng: "${message}"
+
+Lịch sử cuộc trò chuyện để hiểu ngữ cảnh:
 ${conversationHistory}
 
-Hãy trả về JSON với format chính xác:
+Dữ liệu hiện tại của người dùng:
+- Số dự án đang có: ${projects.length}
+- Số task đã hoàn thành: ${tasks.filter(t => t.status === 'done').length}/${tasks.length}
+- Kinh nghiệm Pomodoro: ${sessions.filter(s => s.type === 'focus').length} phiên
+
+Hãy phân tích sâu và tạo dự án với:
+1. Tên dự án cụ thể, hấp dẫn
+2. Mô tả chi tiết mục tiêu và kết quả mong đợi
+3. Chia nhỏ thành 3-8 tasks với:
+   - Tiêu đề rõ ràng, hành động cụ thể
+   - Mô tả chi tiết cách thực hiện
+   - Độ ưu tiên dựa trên phụ thuộc và tầm quan trọng
+   - Ước tính Pomodoro thực tế (1-8 cho mỗi task)
+   - Thứ tự thực hiện logic
+4. Timeline tổng thể
+5. Các điểm quan trọng cần lưu ý
+6. Gợi ý kỹ năng hoặc tài nguyên cần thiết
+
+Nếu mô tả chưa đủ chi tiết, hãy đặt 2-3 câu hỏi làm rõ.
+
+Trả về JSON với format chính xác:
 {
   "projectName": "Tên dự án cụ thể",
-  "description": "Mô tả chi tiết dự án",
+  "description": "Mô tả chi tiết dự án và mục tiêu",
   "tasks": [
     {
-      "title": "Tên task cụ thể",
-      "description": "Mô tả chi tiết task",
+      "title": "Tên task cụ thể với động từ hành động",
+      "description": "Mô tả chi tiết cách thực hiện, bao gồm các bước cụ thể",
       "priority": 1-3,
-      "estimatedPomodoros": 1-10
+      "estimatedPomodoros": 1-8,
+      "order": 1
     }
   ],
-  "timeline": "Thời gian dự kiến",
-  "keyPoints": ["Điểm quan trọng 1", "Điểm quan trọng 2"]
+  "timeline": "Thời gian dự kiến hoàn thành",
+  "keyPoints": ["Điểm quan trọng 1", "Điểm quan trọng 2"],
+  "requiredSkills": ["Kỹ năng 1", "Kỹ năng 2"],
+  "clarificationQuestions": ["Câu hỏi 1?", "Câu hỏi 2?"]
 }
 
 Chỉ trả về JSON, không thêm text khác.
@@ -229,33 +256,47 @@ Chỉ trả về JSON, không thêm text khác.
             responseData = analysis;
             responseType = 'project';
             
+            let clarificationText = '';
+            if (analysis.clarificationQuestions && analysis.clarificationQuestions.length > 0) {
+              clarificationText = `\n\n❓ **Để tối ưu hóa dự án, tôi cần làm rõ thêm:**\n${analysis.clarificationQuestions.map((q: string) => `• ${q}`).join('\n')}`;
+            }
+
+            let skillsText = '';
+            if (analysis.requiredSkills && analysis.requiredSkills.length > 0) {
+              skillsText = `\n\n🎯 **Kỹ năng cần thiết:**\n${analysis.requiredSkills.map((skill: string) => `• ${skill}`).join('\n')}`;
+            }
+
             botResponse = `🎯 **Phân tích dự án hoàn tất!**
 
 **📋 Dự án:** ${analysis.projectName}
 **📝 Mô tả:** ${analysis.description}
-**⏱️ Thời gian:** ${analysis.timeline}
+**⏱️ Timeline:** ${analysis.timeline}
 
-**🎯 Các task được đề xuất:**
-${analysis.tasks.map((task: any, index: number) => 
-  `${index + 1}. **${task.title}** (${task.priority === 3 ? 'Cao' : task.priority === 2 ? 'Trung bình' : 'Thấp'}) - ${task.estimatedPomodoros} Pomodoro\n   ${task.description}`
-).join('\n')}
+**🎯 Các task được đề xuất (theo thứ tự ưu tiên):**
+${analysis.tasks
+  .sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
+  .map((task: any, index: number) => 
+    `${index + 1}. **${task.title}** (${task.priority === 3 ? 'Cao' : task.priority === 2 ? 'Trung bình' : 'Thấp'}) - ${task.estimatedPomodoros} Pomodoro\n   📝 ${task.description}`
+  ).join('\n\n')}
 
 **💡 Điểm quan trọng:**
-${analysis.keyPoints.map((point: string) => `• ${point}`).join('\n')}
+${analysis.keyPoints.map((point: string) => `• ${point}`).join('\n')}${skillsText}${clarificationText}
 
-Bạn có muốn tôi tạo dự án và các task này không? Hãy trả lời "Có, tạo dự án" để xác nhận.`;
+✅ **Bạn có muốn tôi tạo dự án này không?** Hãy trả lời "Có, tạo dự án" để xác nhận hoặc yêu cầu chỉnh sửa nếu cần.`;
           }
         } catch (error) {
           console.error('Analysis failed:', error);
-          botResponse = '❌ Có lỗi xảy ra khi phân tích. Vui lòng mô tả rõ hơn về dự án bạn muốn thực hiện.';
+          botResponse = '❌ Có lỗi xảy ra khi phân tích. Vui lòng mô tả rõ hơn về dự án bạn muốn thực hiện, bao gồm mục tiêu, phạm vi và thời gian dự kiến.';
         }
       }
-      // Check for project creation confirmation
+      // Enhanced project creation confirmation
       else if ((message.toLowerCase().includes('có') && message.toLowerCase().includes('tạo')) ||
                message.toLowerCase().includes('xác nhận') ||
-               message.toLowerCase().includes('đồng ý')) {
+               message.toLowerCase().includes('đồng ý') ||
+               message.toLowerCase().includes('ok') ||
+               message.toLowerCase().includes('được')) {
         
-        // Find the last project analysis in conversation - using reverse iteration instead of findLast
+        // Find the last project analysis in conversation
         let lastProjectMessage = null;
         for (let i = conversation.messages.length - 1; i >= 0; i--) {
           if (conversation.messages[i].type === 'project') {
@@ -274,9 +315,11 @@ Bạn có muốn tôi tạo dự án và các task này không? Hãy trả lời
               userId
             });
             
-            // Create tasks
+            // Create tasks with proper ordering
             const createdTasks = [];
-            for (const taskData of analysis.tasks) {
+            const sortedTasks = analysis.tasks.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+            
+            for (const taskData of sortedTasks) {
               const task = await TaskModel.create({
                 projectId: project._id,
                 title: taskData.title,
@@ -291,13 +334,19 @@ Bạn có muốn tôi tạo dự án và các task này không? Hãy trả lời
             responseType = 'task';
             botResponse = `✅ **Dự án đã được tạo thành công!**
 
-📋 **${project.name}** với ${createdTasks.length} tasks
+📋 **${project.name}** với ${createdTasks.length} tasks đã được tạo
 🎯 Bạn có thể bắt đầu làm việc ngay bây giờ!
 
-**Các task đã tạo:**
-${createdTasks.map((task, index) => `${index + 1}. ${task.title}`).join('\n')}
+**🚀 Gợi ý để bắt đầu hiệu quả:**
+• Bắt đầu với task có độ ưu tiên cao nhất
+• Sử dụng kỹ thuật Pomodoro để duy trì tập trung
+• Cập nhật tiến độ thường xuyên để tôi có thể hỗ trợ tốt hơn
 
-Chuyển đến trang dự án để xem chi tiết và bắt đầu làm việc nhé!`;
+**📊 Thống kê dự án:**
+• Tổng thời gian ước tính: ${createdTasks.reduce((total, task) => total + (task.estimatedPomodoros || 0), 0)} Pomodoro
+• Độ phức tạp: ${createdTasks.length > 5 ? 'Cao' : createdTasks.length > 3 ? 'Trung bình' : 'Đơn giản'}
+
+Chuyển đến trang dự án để xem chi tiết và bắt đầu làm việc nhé! 🎉`;
           } catch (error) {
             console.error('Failed to create project:', error);
             botResponse = '❌ Có lỗi xảy ra khi tạo dự án. Vui lòng thử lại!';
@@ -306,10 +355,10 @@ Chuyển đến trang dự án để xem chi tiết và bắt đầu làm việc
           botResponse = '❌ Không tìm thấy thông tin dự án để tạo. Vui lòng mô tả lại dự án bạn muốn thực hiện.';
         }
       }
-      // General AI chat with full context
+      // General AI chat with enhanced context
       else {
         const contextPrompt = `
-Bạn là AI Agent trợ lý quản lý công việc thông minh. Hãy trả lời câu hỏi dựa trên context đầy đủ.
+Bạn là AI Agent trợ lý quản lý công việc thông minh, áp dụng các phương pháp khoa học về năng suất.
 
 Lịch sử cuộc trò chuyện:
 ${conversationHistory}
@@ -318,10 +367,18 @@ Dữ liệu người dùng hiện tại:
 - Số dự án: ${projects.length} (${projects.filter(p => !p.completed).length} đang thực hiện)
 - Số task: ${tasks.length} (${tasks.filter(t => t.status === 'done').length} hoàn thành)
 - Số phiên Pomodoro: ${sessions.filter(s => s.type === 'focus').length}
+- Tỷ lệ hoàn thành: ${tasks.length > 0 ? Math.round((tasks.filter(t => t.status === 'done').length / tasks.length) * 100) : 0}%
 
 Tin nhắn mới: ${message}
 
-Hãy trả lời một cách hữu ích, thân thiện và dựa trên context của cuộc trò chuyện. Nếu người dùng muốn tạo dự án hoặc phân tích công việc, hãy hướng dẫn họ mô tả chi tiết hơn.
+Hãy trả lời dựa trên các nguyên tắc khoa học:
+1. **Mục tiêu SMART**: Gợi ý cách đặt mục tiêu cụ thể, đo lường được
+2. **Flow State**: Nhận diện và gợi ý cách duy trì trạng thái tập trung
+3. **Pomodoro Technique**: Khuyến khích sử dụng kỹ thuật này
+4. **Gamification**: Tạo động lực qua thành tích và milestone
+5. **Positive Reinforcement**: Khen ngợi thành tích và động viên
+
+Trả lời một cách thân thiện, hữu ích và dựa trên dữ liệu thực tế của người dùng.
 `;
 
         try {
@@ -357,6 +414,170 @@ Hãy trả lời một cách hữu ích, thân thiện và dựa trên context c
     } catch (error) {
       console.error('Error in AI chat:', error);
       res.status(500).json({ message: 'Failed to process chat' });
+    }
+  });
+
+  // New proactive feedback endpoint
+  app.post('/api/ai/proactive-feedback', authenticateToken, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const [tasks, sessions, projects] = await Promise.all([
+        TaskModel.find({ userId }),
+        SessionModel.find({ userId }),
+        ProjectModel.find({ userId })
+      ]);
+
+      const completedTasks = tasks.filter(t => t.status === 'done').length;
+      const totalTasks = tasks.length;
+      const completionRate = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
+      
+      const focusSessions = sessions.filter(s => s.type === 'focus');
+      const totalFocusTime = focusSessions.reduce((total, s) => total + (s.duration || 0), 0);
+      
+      const activeProjects = projects.filter(p => !p.completed).length;
+      const today = new Date().toDateString();
+      const todayPomodoros = focusSessions.filter(s => 
+        new Date(s.startTime).toDateString() === today
+      ).length;
+
+      // Analyze patterns and generate proactive feedback
+      const feedbackPrompt = `
+Phân tích dữ liệu người dùng và đưa ra phản hồi chủ động dựa trên các nguyên tắc khoa học:
+
+Dữ liệu hiện tại:
+- Tổng task: ${totalTasks}, hoàn thành: ${completedTasks} (${completionRate.toFixed(1)}%)
+- Dự án đang thực hiện: ${activeProjects}
+- Tổng phiên Pomodoro: ${focusSessions.length}
+- Pomodoro hôm nay: ${todayPomodoros}
+- Thời gian tập trung: ${Math.round(totalFocusTime / 60)} phút
+
+Áp dụng các phương pháp khoa học:
+1. **Flow State Theory**: Đánh giá mức độ tập trung
+2. **Goal Setting Theory**: Kiểm tra mục tiêu SMART
+3. **Pomodoro Technique**: Hiệu quả quản lý thời gian
+4. **Gamification**: Động lực và thành tích
+
+Đưa ra:
+1. Đánh giá tình trạng hiện tại (tích cực)
+2. Phát hiện vấn đề tiềm ẩn (nếu có)
+3. Gợi ý cải thiện cụ thể
+4. Động viên và khuyến khích
+5. Mục tiêu ngắn hạn
+
+Trả lời ngắn gọn, tích cực và hành động được.
+`;
+
+      const aiResponse = await chat({
+        model: 'gemini-2.0-flash',
+        contents: feedbackPrompt
+      });
+
+      res.json({
+        feedback: aiResponse.text,
+        stats: {
+          completionRate,
+          todayPomodoros,
+          activeProjects,
+          totalFocusTime: Math.round(totalFocusTime / 60)
+        },
+        timestamp: new Date()
+      });
+    } catch (error) {
+      console.error('Error generating proactive feedback:', error);
+      res.status(500).json({ message: 'Failed to generate feedback' });
+    }
+  });
+
+  // Enhanced encouragement endpoint with achievement system
+  app.post('/api/ai/encourage', authenticateToken, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const { taskId } = req.body;
+      
+      const task = await TaskModel.findOne({ _id: taskId, userId });
+      if (!task) {
+        return res.status(404).json({ message: 'Task not found' });
+      }
+
+      const [project, userTasks, sessions] = await Promise.all([
+        ProjectModel.findById(task.projectId),
+        TaskModel.find({ userId }),
+        SessionModel.find({ userId, type: 'focus' })
+      ]);
+
+      const completedTasks = userTasks.filter(t => t.status === 'done').length;
+      const taskSessions = sessions.filter(s => s.taskId === taskId);
+      const totalSessions = sessions.length;
+
+      // Detect achievements
+      const achievements = [];
+      
+      if (completedTasks === 1) achievements.push("🎉 First Task Completed!");
+      if (completedTasks === 10) achievements.push("🏆 Task Master - 10 Tasks!");
+      if (completedTasks === 50) achievements.push("🌟 Productivity Champion - 50 Tasks!");
+      if (completedTasks % 25 === 0 && completedTasks > 0) achievements.push(`🎯 Milestone: ${completedTasks} Tasks Completed!`);
+      
+      if (totalSessions === 10) achievements.push("🔥 Pomodoro Beginner!");
+      if (totalSessions === 50) achievements.push("⚡ Focus Master!");
+      if (totalSessions === 100) achievements.push("🚀 Concentration Expert!");
+      
+      const today = new Date().toDateString();
+      const todayTasks = userTasks.filter(t => 
+        t.status === 'done' && 
+        new Date(t.updatedAt || '').toDateString() === today
+      ).length;
+      
+      if (todayTasks >= 3) achievements.push("📅 Daily Achiever!");
+      if (todayTasks >= 5) achievements.push("🌟 Super Productive Day!");
+
+      const encouragementPrompt = `
+Tạo lời động viên cá nhân hóa cho người dùng vừa hoàn thành task:
+
+Task vừa hoàn thành: "${task.title}"
+Dự án: "${project?.name || 'Unknown'}"
+Mô tả: "${task.description || 'Không có mô tả'}"
+
+Thống kê thành tích:
+- Tổng task hoàn thành: ${completedTasks}
+- Tổng phiên Pomodoro: ${totalSessions}
+- Phiên Pomodoro cho task này: ${taskSessions.length}
+- Task hoàn thành hôm nay: ${todayTasks}
+
+Thành tích mới đạt được: ${achievements.length > 0 ? achievements.join(', ') : 'Không có'}
+
+Tạo lời động viên bao gồm:
+1. Chúc mừng cụ thể và nhiệt tình
+2. Nhận xét về nỗ lực và kỹ năng thể hiện
+3. Liên hệ với mục tiêu lớn hơn
+4. Động lực cho bước tiếp theo
+5. Sử dụng emoji phù hợp
+
+Phong cách: Tích cực, cá nhân hóa, khuyến khích, dựa trên khoa học tâm lý.
+Độ dài: 3-5 câu, ngắn gọn nhưng ý nghĩa.
+`;
+
+      const aiResponse = await chat({
+        model: 'gemini-2.0-flash',
+        contents: encouragementPrompt
+      });
+
+      res.json({
+        message: aiResponse.text,
+        achievements: achievements,
+        stats: {
+          completedTasks,
+          totalSessions,
+          todayTasks,
+          taskSessions: taskSessions.length
+        }
+      });
+    } catch (error) {
+      console.error('Error generating encouragement:', error);
+      res.status(500).json({ 
+        message: '🎉 Chúc mừng bạn đã hoàn thành task! Tiếp tục phát huy nhé!',
+        achievements: [],
+        stats: {}
+      });
     }
   });
 
@@ -431,7 +652,7 @@ Hãy trả lời một cách hữu ích, thân thiện và dựa trên context c
 
       // Tạo phân tích bằng AI
       const analysisPrompt = `
-Phân tích hiệu suất làm việc của người dùng:
+Phân tích hiệu suất làm việc của người dùng dựa trên các phương pháp khoa học:
 
 Thống kê:
 - Tổng số task: ${totalTasks}
@@ -442,12 +663,18 @@ Thống kê:
 - Tổng thời gian tập trung: ${Math.round(totalFocusTime / 60)} phút
 - Số phiên Pomodoro: ${focusSessions.length}
 
+Áp dụng các lý thuyết:
+1. **Flow State Theory**: Đánh giá khả năng tập trung
+2. **Goal Achievement Theory**: Hiệu quả đạt mục tiêu
+3. **Time Management**: Quản lý thời gian
+4. **Productivity Psychology**: Tâm lý năng suất
+
 Hãy đưa ra:
-1. Đánh giá tổng quan về hiệu suất
-2. Điểm mạnh đã thể hiện
-3. Những điểm cần cải thiện
-4. Gợi ý cụ thể để nâng cao hiệu quả
-5. Lời động viên tích cực
+1. Đánh giá tổng quan về hiệu suất (dựa trên dữ liệu)
+2. Điểm mạnh đã thể hiện (cụ thể)
+3. Những điểm cần cải thiện (xây dựng)
+4. Gợi ý cụ thể để nâng cao hiệu quả (khoa học)
+5. Lời động viên tích cực và mục tiêu tiếp theo
 
 Trả lời bằng tiếng Việt, thân thiện và có cấu trúc rõ ràng.
 `;
@@ -477,57 +704,6 @@ Trả lời bằng tiếng Việt, thân thiện và có cấu trúc rõ ràng.
     } catch (error) {
       console.error('Error analyzing performance:', error);
       res.status(500).json({ message: 'Failed to analyze performance' });
-    }
-  });
-
-  // AI encouragement endpoint - Động viên khi hoàn thành task
-  app.post('/api/ai/encourage', authenticateToken, async (req, res) => {
-    try {
-      const userId = (req as any).userId;
-      const { taskId } = req.body;
-      
-      const task = await TaskModel.findOne({ _id: taskId, userId });
-      if (!task) {
-        return res.status(404).json({ message: 'Task not found' });
-      }
-
-      const project = await ProjectModel.findById(task.projectId);
-      const userTasks = await TaskModel.find({ userId });
-      const completedTasks = userTasks.filter(t => t.status === 'done').length;
-      const sessions = await SessionModel.find({ userId, type: 'focus' });
-
-      const encouragementPrompt = `
-Người dùng vừa hoàn thành task: "${task.title}"
-Thuộc dự án: "${project?.name || 'Unknown'}"
-
-Thống kê hiện tại:
-- Tổng task hoàn thành: ${completedTasks}
-- Tổng phiên Pomodoro: ${sessions.length}
-- Mô tả task: ${task.description || 'Không có mô tả'}
-
-Hãy tạo lời động viên bao gồm:
-1. Lời chúc mừng nhiệt tình và cụ thể
-2. Nhận xét về thành tích (nếu đáng chú ý)
-3. Động lực cho bước tiếp theo
-4. Emoji phù hợp để tạo không khí tích cực
-
-Trả lời ngắn gọn, tích cực và cá nhân hóa.
-`;
-
-      const aiResponse = await chat({
-        model: 'gemini-2.0-flash',
-        contents: encouragementPrompt
-      });
-
-      res.json({
-        message: aiResponse.text,
-        achievement: completedTasks % 5 === 0 ? `Milestone: ${completedTasks} tasks completed!` : null
-      });
-    } catch (error) {
-      console.error('Error generating encouragement:', error);
-      res.status(500).json({ 
-        message: '🎉 Chúc mừng bạn đã hoàn thành task! Tiếp tục phát huy nhé!' 
-      });
     }
   });
 

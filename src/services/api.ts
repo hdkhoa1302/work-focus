@@ -219,10 +219,33 @@ export const getAnalysis = async (): Promise<AnalysisResponse> => {
 
 export interface EncouragementResponse {
   message: string;
-  achievement?: string;
+  achievements?: string[];
+  stats?: {
+    completedTasks: number;
+    totalSessions: number;
+    todayTasks: number;
+    taskSessions: number;
+  };
 }
 
 export const getEncouragement = async (taskId: string): Promise<EncouragementResponse> => {
   const resp = await api.post<EncouragementResponse>('/api/ai/encourage', { taskId });
+  return resp.data;
+};
+
+// New Proactive Feedback API
+export interface ProactiveFeedbackResponse {
+  feedback: string;
+  stats: {
+    completionRate: number;
+    todayPomodoros: number;
+    activeProjects: number;
+    totalFocusTime: number;
+  };
+  timestamp: Date;
+}
+
+export const getProactiveFeedback = async (): Promise<ProactiveFeedbackResponse> => {
+  const resp = await api.post<ProactiveFeedbackResponse>('/api/ai/proactive-feedback');
   return resp.data;
 };

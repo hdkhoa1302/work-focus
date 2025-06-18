@@ -1,20 +1,24 @@
 import React, { useEffect, useState } from 'react';
-import { getTasks, getSessions, Task, Session } from '../services/api';
+import { getTasks, getSessions, Task, Session, getProactiveFeedback, ProactiveFeedbackResponse } from '../services/api';
 import { 
   AiOutlineCheckCircle, 
   AiOutlineClockCircle, 
   AiOutlineFire, 
   AiOutlineCalendar,
   AiOutlineTrophy,
-  AiOutlinePlus
+  AiOutlinePlus,
+  AiOutlineBulb,
+  AiOutlineClose
 } from 'react-icons/ai';
-import { FiTarget } from 'react-icons/fi';
+import { FiTarget, FiTrendingUp } from 'react-icons/fi';
 import useLanguage from '../hooks/useLanguage';
 
 const Dashboard: React.FC = () => {
   const { t } = useLanguage();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [proactiveFeedback, setProactiveFeedback] = useState<ProactiveFeedbackResponse | null>(null);
+  const [showFeedback, setShowFeedback] = useState(false);
   const [stats, setStats] = useState({
     totalTasks: 0,
     completedTasks: 0,
@@ -52,12 +56,34 @@ const Dashboard: React.FC = () => {
           totalPomodoros,
           focusTime: Math.round(focusTime / 60) // Convert to minutes
         });
+
+        // Fetch proactive feedback periodically
+        fetchProactiveFeedback();
       } catch (error) {
         console.error('Failed to fetch dashboard data:', error);
       }
     }
     fetchData();
+
+    // Set up periodic proactive feedback (every 30 minutes)
+    const feedbackInterval = setInterval(fetchProactiveFeedback, 30 * 60 * 1000);
+    
+    return () => clearInterval(feedbackInterval);
   }, []);
+
+  const fetchProactiveFeedback = async () => {
+    try {
+      const feedback = await getProactiveFeedback();
+      setProactiveFeedback(feedback);
+      
+      // Show feedback notification if it's meaningful
+      if (feedback.feedback && feedback.feedback.length > 50) {
+        setShowFeedback(true);
+      }
+    } catch (error) {
+      console.error('Failed to fetch proactive feedback:', error);
+    }
+  };
 
   const recentTasks = tasks
     .filter(task => task.status !== 'done')
@@ -68,6 +94,33 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="space-y-6 sm:space-y-8">
+      {/* Proactive Feedback Notification */}
+      {showFeedback && proactiveFeedback && (
+        <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl p-4 text-white shadow-lg animate-slide-up">
+          <div className="flex items-start justify-between">
+            <div className="flex items-start space-x-3">
+              <AiOutlineBulb className="text-2xl mt-1 flex-shrink-0" />
+              <div className="min-w-0 flex-1">
+                <h3 className="font-semibold mb-2">💡 AI Insights for You</h3>
+                <p className="text-blue-100 text-sm leading-relaxed whitespace-pre-wrap">
+                  {proactiveFeedback.feedback}
+                </p>
+                <div className="mt-3 flex items-center space-x-4 text-xs text-blue-200">
+                  <span>📊 Completion: {proactiveFeedback.stats.completionRate.toFixed(1)}%</span>
+                  <span>🔥 Today: {proactiveFeedback.stats.todayPomodoros} Pomodoros</span>
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowFeedback(false)}
+              className="p-1 hover:bg-white hover:bg-opacity-20 rounded-full transition-colors flex-shrink-0"
+            >
+              <AiOutlineClose className="text-lg" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Welcome Section */}
       <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl sm:rounded-2xl p-6 sm:p-8 text-white">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
@@ -199,6 +252,15 @@ const Dashboard: React.FC = () => {
               <AiOutlineTrophy className="text-lg sm:text-xl flex-shrink-0" />
               <span className="font-medium text-sm sm:text-base">{t('dashboard.viewReports')}</span>
             </button>
+
+            {/* AI Insights Button */}
+            <button 
+              onClick={fetchProactiveFeedback}
+              className="w-full flex items-center space-x-3 p-3 sm:p-4 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-lg hover:from-indigo-600 hover:to-purple-600 transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105"
+            >
+              <AiOutlineBulb className="text-lg sm:text-xl flex-shrink-0" />
+              <span className="font-medium text-sm sm:text-base">Get AI Insights</span>
+            </button>
           </div>
 
           {/* Achievement Badge */}
@@ -211,6 +273,20 @@ const Dashboard: React.FC = () => {
                   <p className="text-xs sm:text-sm opacity-90">{t('dashboard.productiveDay')}</p>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* AI Performance Insight */}
+          {proactiveFeedback && (
+            <div className="mt-4 sm:mt-6 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+              <div className="flex items-center space-x-2 mb-2">
+                <FiTrendingUp className="text-blue-600 dark:text-blue-400" />
+                <span className="text-sm font-medium text-blue-800 dark:text-blue-300">Performance Insight</span>
+              </div>
+              <p className="text-xs text-blue-700 dark:text-blue-400">
+                Completion Rate: {proactiveFeedback.stats.completionRate.toFixed(1)}% | 
+                Focus Time: {proactiveFeedback.stats.totalFocusTime}m
+              </p>
             </div>
           )}
         </div>

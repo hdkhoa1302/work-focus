@@ -135,11 +135,19 @@ export const deleteTask = async (id: string): Promise<void> => {
 // Xuất api instance để sử dụng trong các service khác
 export { api };
 
-// Thêm interface và API cho config
+// Enhanced Config interface with work schedule
 export interface Config {
   pomodoro: { focus: number; break: number };
   blockList: { hosts: string[]; apps: string[] };
   notifications: { enabled: boolean; sound: boolean };
+  workSchedule: {
+    hoursPerDay: number;
+    daysPerWeek: number;
+    startTime: string; // HH:MM format
+    endTime: string; // HH:MM format
+    breakHours: number;
+    overtimeRate: number; // multiplier for overtime calculation
+  };
 }
 
 export const getConfig = async (): Promise<Config> => {
@@ -152,13 +160,18 @@ export const saveConfig = async (config: Config): Promise<Config> => {
   return resp.data;
 };
 
-// Thêm Project interface và APIs
+// Enhanced Project interface with deadline and time tracking
 export interface Project {
   _id: string;
   name: string;
   createdAt?: string;
   completed?: boolean;
   status?: 'todo' | 'in-progress' | 'done';
+  deadline?: string;
+  estimatedHours?: number;
+  actualHours?: number;
+  description?: string;
+  priority?: number;
 }
 
 export const getProjects = async (): Promise<Project[]> => {
@@ -166,8 +179,8 @@ export const getProjects = async (): Promise<Project[]> => {
   return resp.data;
 };
 
-export const createProject = async (name: string): Promise<Project> => {
-  const resp = await api.post<Project>('/api/projects', { name });
+export const createProject = async (projectData: Partial<Project>): Promise<Project> => {
+  const resp = await api.post<Project>('/api/projects', projectData);
   return resp.data;
 };
 
@@ -178,6 +191,31 @@ export const updateProject = async (id: string, data: Partial<Project>): Promise
 
 export const deleteProject = async (id: string): Promise<void> => {
   await api.delete(`/api/projects/${id}`);
+};
+
+// Project Progress Analysis API
+export interface ProjectProgressAnalysis {
+  project: Project;
+  tasks: Task[];
+  sessions: Session[];
+  analysis: {
+    totalEstimatedHours: number;
+    totalActualHours: number;
+    completionPercentage: number;
+    remainingHours: number;
+    isOnTrack: boolean;
+    daysRemaining: number;
+    requiredDailyHours: number;
+    overtimeRequired: number;
+    riskLevel: 'low' | 'medium' | 'high' | 'critical';
+    recommendations: string[];
+  };
+  workSchedule: Config['workSchedule'];
+}
+
+export const getProjectProgress = async (projectId: string): Promise<ProjectProgressAnalysis> => {
+  const resp = await api.get<ProjectProgressAnalysis>(`/api/projects/${projectId}/progress`);
+  return resp.data;
 };
 
 // Enhanced interfaces và API cho AI chat với whiteboard context
@@ -283,4 +321,25 @@ export const updateWhiteboardItem = async (itemTitle: string, updates: Partial<W
     );
     localStorage.setItem('ai-whiteboard', JSON.stringify(updatedItems));
   }
+};
+
+// Time calculation utilities
+export const calculateWorkingHours = (
+  startDate: Date, 
+  endDate: Date, 
+  workSchedule: Config['workSchedule']
+): number => {
+  const msPerDay = 24 * 60 * 60 * 1000;
+  const days = Math.ceil((endDate.getTime() - startDate.getTime()) / msPerDay);
+  const workingDays = Math.floor(days * (workSchedule.daysPerWeek / 7));
+  return workingDays * workSchedule.hoursPerDay;
+};
+
+export const calculateOvertimeRequired = (
+  remainingHours: number,
+  availableWorkingHours: number,
+  workSchedule: Config['workSchedule']
+): number => {
+  if (remainingHours <= availableWorkingHours) return 0;
+  return remainingHours - availableWorkingHours;
 };

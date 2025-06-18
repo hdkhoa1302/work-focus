@@ -3,9 +3,10 @@ import {
   AiOutlineClockCircle, 
   AiOutlineBell, 
   AiOutlineDatabase,
-  AiOutlineSave
+  AiOutlineSave,
+  AiOutlineCalendar
 } from 'react-icons/ai';
-import { FiShield, FiRefreshCw, FiGlobe } from 'react-icons/fi';
+import { FiShield, FiRefreshCw, FiGlobe, FiClock } from 'react-icons/fi';
 import { getConfig as apiGetConfig, saveConfig as apiSaveConfig } from '../services/api';
 import useLanguage from '../hooks/useLanguage';
 
@@ -22,6 +23,14 @@ interface Config {
     enabled: boolean;
     sound: boolean;
   };
+  workSchedule: {
+    hoursPerDay: number;
+    daysPerWeek: number;
+    startTime: string;
+    endTime: string;
+    breakHours: number;
+    overtimeRate: number;
+  };
 }
 
 const SettingsPage: React.FC = () => {
@@ -29,7 +38,15 @@ const SettingsPage: React.FC = () => {
   const [config, setConfig] = useState<Config>({
     pomodoro: { focus: 25, break: 5 },
     blockList: { hosts: [], apps: [] },
-    notifications: { enabled: true, sound: true }
+    notifications: { enabled: true, sound: true },
+    workSchedule: {
+      hoursPerDay: 8,
+      daysPerWeek: 5,
+      startTime: '09:00',
+      endTime: '17:00',
+      breakHours: 1,
+      overtimeRate: 1.5
+    }
   });
   const [newApp, setNewApp] = useState('');
   const [availableApps, setAvailableApps] = useState<string[]>([]);
@@ -56,7 +73,15 @@ const SettingsPage: React.FC = () => {
       setConfig({
         pomodoro: data.pomodoro || { focus: 25, break: 5 },
         blockList: data.blockList || { hosts: [], apps: [] },
-        notifications: data.notifications || { enabled: true, sound: true }
+        notifications: data.notifications || { enabled: true, sound: true },
+        workSchedule: data.workSchedule || {
+          hoursPerDay: 8,
+          daysPerWeek: 5,
+          startTime: '09:00',
+          endTime: '17:00',
+          breakHours: 1,
+          overtimeRate: 1.5
+        }
       });
     } catch (error) {
       console.error('Failed to fetch config:', error);
@@ -104,7 +129,7 @@ const SettingsPage: React.FC = () => {
   return (
     <div className="space-y-6 sm:space-y-8">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6 space-y-4 sm:space-y-0">
         <div className="min-w-0">
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100">{t('settings.title')}</h1>
           <p className="text-gray-600 dark:text-gray-400 text-sm sm:text-base">Customize your FocusTrack experience</p>
@@ -216,6 +241,145 @@ const SettingsPage: React.FC = () => {
                 }))}
                 className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 sm:px-4 py-2 sm:py-3 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
               />
+            </div>
+          </div>
+        </div>
+
+        {/* Work Schedule Settings */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center space-x-3 mb-4 sm:mb-6">
+            <div className="w-10 h-10 bg-green-100 dark:bg-green-900 rounded-lg flex items-center justify-center flex-shrink-0">
+              <AiOutlineCalendar className="text-lg sm:text-xl text-green-600 dark:text-green-400" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100">Lịch làm việc</h2>
+              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Cấu hình thời gian làm việc và tính OT</p>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Giờ làm việc mỗi ngày
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="24"
+                  value={config.workSchedule.hoursPerDay}
+                  onChange={e => setConfig(prev => ({
+                    ...prev,
+                    workSchedule: { 
+                      ...prev.workSchedule, 
+                      hoursPerDay: Number(e.target.value) 
+                    }
+                  }))}
+                  className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Ngày làm việc mỗi tuần
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="7"
+                  value={config.workSchedule.daysPerWeek}
+                  onChange={e => setConfig(prev => ({
+                    ...prev,
+                    workSchedule: { 
+                      ...prev.workSchedule, 
+                      daysPerWeek: Number(e.target.value) 
+                    }
+                  }))}
+                  className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Giờ bắt đầu
+                </label>
+                <input
+                  type="time"
+                  value={config.workSchedule.startTime}
+                  onChange={e => setConfig(prev => ({
+                    ...prev,
+                    workSchedule: { 
+                      ...prev.workSchedule, 
+                      startTime: e.target.value 
+                    }
+                  }))}
+                  className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Giờ kết thúc
+                </label>
+                <input
+                  type="time"
+                  value={config.workSchedule.endTime}
+                  onChange={e => setConfig(prev => ({
+                    ...prev,
+                    workSchedule: { 
+                      ...prev.workSchedule, 
+                      endTime: e.target.value 
+                    }
+                  }))}
+                  className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Giờ nghỉ trưa
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="5"
+                  step="0.5"
+                  value={config.workSchedule.breakHours}
+                  onChange={e => setConfig(prev => ({
+                    ...prev,
+                    workSchedule: { 
+                      ...prev.workSchedule, 
+                      breakHours: Number(e.target.value) 
+                    }
+                  }))}
+                  className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Hệ số OT
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="3"
+                  step="0.1"
+                  value={config.workSchedule.overtimeRate}
+                  onChange={e => setConfig(prev => ({
+                    ...prev,
+                    workSchedule: { 
+                      ...prev.workSchedule, 
+                      overtimeRate: Number(e.target.value) 
+                    }
+                  }))}
+                  className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
             </div>
           </div>
         </div>

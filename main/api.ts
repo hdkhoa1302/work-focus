@@ -59,12 +59,12 @@ Tôi có thể giúp bạn:
 • Phân tích mô tả công việc và tạo dự án chi tiết
 • Chia nhỏ dự án thành các task cụ thể với timeline rõ ràng
 • Theo dõi tiến độ và đưa ra gợi ý tối ưu hóa
+• Tự động cập nhật trạng thái và đề xuất hành động
 
 🎨 **Whiteboard thông minh**
 • Ghi nhớ các quyết định quan trọng
 • Lưu trữ ý tưởng và kế hoạch dài hạn
 • Theo dõi các mục tiêu đã đặt ra
-• Tự động cập nhật trạng thái và đề xuất hành động
 
 📊 **Phân tích & động viên dựa trên khoa học**
 • Đánh giá hiệu suất làm việc theo phương pháp SMART
@@ -274,6 +274,8 @@ Hãy phân tích sâu và tạo dự án với:
 5. Các điểm quan trọng cần lưu ý
 6. Gợi ý kỹ năng hoặc tài nguyên cần thiết
 7. Liên kết với whiteboard (nếu có)
+8. Deadline dự án (nếu có thể suy luận)
+9. Ước tính tổng thời gian (giờ)
 
 Nếu mô tả chưa đủ chi tiết, hãy đặt 2-3 câu hỏi làm rõ.
 
@@ -281,6 +283,9 @@ Trả về JSON với format chính xác:
 {
   "projectName": "Tên dự án cụ thể",
   "description": "Mô tả chi tiết dự án và mục tiêu",
+  "deadline": "YYYY-MM-DD hoặc null",
+  "estimatedHours": số giờ ước tính,
+  "priority": 1-3,
   "tasks": [
     {
       "title": "Tên task cụ thể với động từ hành động",
@@ -328,11 +333,17 @@ Chỉ trả về JSON, không thêm text khác.
               whiteboardText = `\n\n🔗 **Liên kết với Whiteboard:**\n${analysis.whiteboardConnections.map((conn: string) => `• ${conn}`).join('\n')}`;
             }
 
+            let deadlineText = '';
+            if (analysis.deadline) {
+              deadlineText = `\n⏰ **Deadline:** ${new Date(analysis.deadline).toLocaleDateString()}`;
+            }
+
             botResponse = `🎯 **Phân tích dự án hoàn tất!**
 
 **📋 Dự án:** ${analysis.projectName}
 **📝 Mô tả:** ${analysis.description}
-**⏱️ Timeline:** ${analysis.timeline}
+**⏱️ Timeline:** ${analysis.timeline}${deadlineText}
+**🕒 Ước tính:** ${analysis.estimatedHours || 'Chưa xác định'} giờ
 
 **🎯 Các task được đề xuất (theo thứ tự ưu tiên):**
 ${analysis.tasks
@@ -598,9 +609,13 @@ Bạn có muốn áp dụng cập nhật này không?`;
           try {
             const analysis = lastProjectMessage.data;
             
-            // Create project
+            // Create project with enhanced data
             const project = await ProjectModel.create({
               name: analysis.projectName,
+              description: analysis.description,
+              deadline: analysis.deadline ? new Date(analysis.deadline) : undefined,
+              estimatedHours: analysis.estimatedHours || 0,
+              priority: analysis.priority || 1,
               userId
             });
             
@@ -621,9 +636,15 @@ Bạn có muốn áp dụng cập nhật này không?`;
             }
 
             responseType = 'task';
+            
+            let deadlineInfo = '';
+            if (analysis.deadline) {
+              deadlineInfo = `\n⏰ **Deadline:** ${new Date(analysis.deadline).toLocaleDateString()}`;
+            }
+            
             botResponse = `✅ **Dự án đã được tạo thành công!**
 
-📋 **${project.name}** với ${createdTasks.length} tasks đã được tạo
+📋 **${project.name}** với ${createdTasks.length} tasks đã được tạo${deadlineInfo}
 🎯 Bạn có thể bắt đầu làm việc ngay bây giờ!
 
 **🚀 Gợi ý để bắt đầu hiệu quả:**
@@ -634,6 +655,7 @@ Bạn có muốn áp dụng cập nhật này không?`;
 **📊 Thống kê dự án:**
 • Tổng thời gian ước tính: ${createdTasks.reduce((total, task) => total + (task.estimatedPomodoros || 0), 0)} Pomodoro
 • Độ phức tạp: ${createdTasks.length > 5 ? 'Cao' : createdTasks.length > 3 ? 'Trung bình' : 'Đơn giản'}
+• Ước tính hoàn thành: ${analysis.estimatedHours || 'Chưa xác định'} giờ
 
 Chuyển đến trang dự án để xem chi tiết và bắt đầu làm việc nhé! 🎉`;
           } catch (error) {
@@ -1145,13 +1167,23 @@ Trả lời bằng tiếng Việt, thân thiện và có cấu trúc rõ ràng.
     }
   });
 
-  // Config
+  // Enhanced Config with work schedule
   app.get('/api/config', async (req, res) => {
     try {
       const userId = (req as any).userId;
       let config = await ConfigModel.findOne({ userId });
       if (!config) {
-        config = new ConfigModel({ userId });
+        config = new ConfigModel({ 
+          userId,
+          workSchedule: {
+            hoursPerDay: 8,
+            daysPerWeek: 5,
+            startTime: '09:00',
+            endTime: '17:00',
+            breakHours: 1,
+            overtimeRate: 1.5
+          }
+        });
         await config.save();
       }
       res.json(config);
@@ -1179,7 +1211,7 @@ Trả lời bằng tiếng Việt, thân thiện và có cấu trúc rõ ràng.
     }
   });
 
-  // Projects CRUD
+  // Enhanced Projects CRUD with deadline and time tracking
   app.get('/api/projects', async (req, res) => {
     try {
       const userId = (req as any).userId;
@@ -1194,11 +1226,11 @@ Trả lời bằng tiếng Việt, thân thiện và có cấu trúc rõ ràng.
   app.post('/api/projects', async (req, res) => {
     try {
       const userId = (req as any).userId;
-      const { name } = req.body;
-      if (!name) {
+      const projectData = { ...req.body, userId };
+      if (!projectData.name) {
         return res.status(400).json({ message: 'Project name is required' });
       }
-      const project = new ProjectModel({ name, userId });
+      const project = new ProjectModel(projectData);
       await project.save();
       res.status(201).json(project);
     } catch (error) {
@@ -1210,11 +1242,16 @@ Trả lời bằng tiếng Việt, thân thiện và có cấu trúc rõ ràng.
   app.put('/api/projects/:id', async (req, res) => {
     try {
       const userId = (req as any).userId;
-      // Cho phép cập nhật name, completed và status
       const updateData: any = {};
-      if (req.body.name !== undefined) updateData.name = req.body.name;
-      if (req.body.completed !== undefined) updateData.completed = req.body.completed;
-      if (req.body.status !== undefined) updateData.status = req.body.status;
+      
+      // Allow updating all project fields
+      const allowedFields = ['name', 'completed', 'status', 'deadline', 'estimatedHours', 'actualHours', 'description', 'priority'];
+      allowedFields.forEach(field => {
+        if (req.body[field] !== undefined) {
+          updateData[field] = req.body[field];
+        }
+      });
+      
       const project = await ProjectModel.findOneAndUpdate(
         { _id: req.params.id, userId },
         updateData,
@@ -1243,6 +1280,139 @@ Trả lời bằng tiếng Việt, thân thiện và có cấu trúc rõ ràng.
     } catch (error) {
       console.error('Error deleting project:', error);
       res.status(500).json({ message: 'Failed to delete project' });
+    }
+  });
+
+  // New Project Progress Analysis endpoint
+  app.get('/api/projects/:id/progress', async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const projectId = req.params.id;
+      
+      const [project, tasks, sessions, config] = await Promise.all([
+        ProjectModel.findOne({ _id: projectId, userId }),
+        TaskModel.find({ projectId, userId }),
+        SessionModel.find({ userId }),
+        ConfigModel.findOne({ userId })
+      ]);
+
+      if (!project) {
+        return res.status(404).json({ message: 'Project not found' });
+      }
+
+      const workSchedule = config?.workSchedule || {
+        hoursPerDay: 8,
+        daysPerWeek: 5,
+        startTime: '09:00',
+        endTime: '17:00',
+        breakHours: 1,
+        overtimeRate: 1.5
+      };
+
+      // Calculate project statistics
+      const completedTasks = tasks.filter(t => t.status === 'done').length;
+      const totalTasks = tasks.length;
+      const completionPercentage = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
+
+      // Calculate time spent on project tasks
+      const projectSessions = sessions.filter(s => 
+        s.taskId && tasks.some(t => t._id.toString() === s.taskId.toString())
+      );
+      const totalActualHours = projectSessions.reduce((total, s) => total + (s.duration || 0), 0) / 3600; // Convert seconds to hours
+
+      // Calculate estimated hours from tasks
+      const totalEstimatedHours = project.estimatedHours || tasks.reduce((total, task) => {
+        return total + ((task.estimatedPomodoros || 1) * 0.5); // 25 min = 0.42 hours, rounded to 0.5
+      }, 0);
+
+      const remainingHours = Math.max(0, totalEstimatedHours - totalActualHours);
+
+      // Calculate deadline analysis
+      let daysRemaining = 0;
+      let requiredDailyHours = 0;
+      let overtimeRequired = 0;
+      let isOnTrack = true;
+      let riskLevel: 'low' | 'medium' | 'high' | 'critical' = 'low';
+
+      if (project.deadline) {
+        const now = new Date();
+        const deadline = new Date(project.deadline);
+        daysRemaining = Math.max(0, Math.ceil((deadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+        
+        if (daysRemaining > 0) {
+          const workingDaysRemaining = Math.floor(daysRemaining * (workSchedule.daysPerWeek / 7));
+          const availableWorkingHours = workingDaysRemaining * workSchedule.hoursPerDay;
+          
+          requiredDailyHours = workingDaysRemaining > 0 ? remainingHours / workingDaysRemaining : remainingHours;
+          
+          if (remainingHours > availableWorkingHours) {
+            overtimeRequired = remainingHours - availableWorkingHours;
+            isOnTrack = false;
+            
+            if (overtimeRequired > availableWorkingHours * 0.5) {
+              riskLevel = 'critical';
+            } else if (overtimeRequired > availableWorkingHours * 0.25) {
+              riskLevel = 'high';
+            } else {
+              riskLevel = 'medium';
+            }
+          } else if (requiredDailyHours > workSchedule.hoursPerDay * 0.8) {
+            riskLevel = 'medium';
+          }
+        } else if (remainingHours > 0) {
+          // Past deadline with remaining work
+          riskLevel = 'critical';
+          isOnTrack = false;
+          overtimeRequired = remainingHours;
+        }
+      }
+
+      // Generate recommendations
+      const recommendations = [];
+      
+      if (!isOnTrack) {
+        recommendations.push('Dự án có nguy cơ trễ deadline. Cần tăng cường thời gian làm việc.');
+      }
+      
+      if (overtimeRequired > 0) {
+        recommendations.push(`Cần làm thêm ${overtimeRequired.toFixed(1)} giờ để hoàn thành đúng hạn.`);
+      }
+      
+      if (completionPercentage < 50 && daysRemaining < 7) {
+        recommendations.push('Tiến độ chậm so với thời gian còn lại. Ưu tiên các task quan trọng nhất.');
+      }
+      
+      if (requiredDailyHours > workSchedule.hoursPerDay) {
+        recommendations.push(`Cần làm việc ${requiredDailyHours.toFixed(1)} giờ/ngày để hoàn thành đúng hạn.`);
+      }
+
+      if (recommendations.length === 0) {
+        recommendations.push('Dự án đang tiến triển tốt. Tiếp tục duy trì nhịp độ hiện tại.');
+      }
+
+      const analysis = {
+        totalEstimatedHours,
+        totalActualHours,
+        completionPercentage,
+        remainingHours,
+        isOnTrack,
+        daysRemaining,
+        requiredDailyHours,
+        overtimeRequired,
+        riskLevel,
+        recommendations
+      };
+
+      res.json({
+        project,
+        tasks,
+        sessions: projectSessions,
+        analysis,
+        workSchedule
+      });
+    } catch (error) {
+      console.error('Error analyzing project progress:', error);
+      res.status(500).json({ message: 'Failed to analyze project progress' });
     }
   });
 

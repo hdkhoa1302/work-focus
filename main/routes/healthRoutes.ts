@@ -30,9 +30,13 @@ router.get('/health', async (req: Request, res: Response) => {
     let dbResponseTime: number | undefined;
 
     try {
-      await mongoose.connection.db.admin().ping();
-      dbStatus = 'connected';
-      dbResponseTime = Date.now() - dbStartTime;
+      if (mongoose.connection.db) {
+        await mongoose.connection.db.admin().ping();
+        dbStatus = 'connected';
+        dbResponseTime = Date.now() - dbStartTime;
+      } else {
+        dbStatus = 'disconnected';
+      }
     } catch (error) {
       dbStatus = 'error';
       logger.error('Database health check failed', error);

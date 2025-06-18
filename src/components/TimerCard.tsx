@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { getTasks, Task as ApiTask } from '../services/api';
+import { getTasks, Task as ApiTask, getConfig as apiGetConfig, getProjects, Project, updateProject } from '../services/api';
 import { AiOutlineFire, AiOutlineCoffee } from 'react-icons/ai';
 import { FiPlay, FiPause, FiRefreshCw } from 'react-icons/fi';
 
@@ -10,38 +10,61 @@ const TimerCard: React.FC = () => {
   const [mode, setMode] = useState<Mode>('focus');
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [config, setConfig] = useState<{ focus: number; break: number }>({ focus: 25, break: 5 });
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [tasks, setTasks] = useState<ApiTask[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState<string>('');
 
   useEffect(() => {
-    fetch('http://localhost:3000/api/config')
-      .then(res => res.json())
+    // Load config
+    apiGetConfig()
       .then(data => {
         if (data.pomodoro) {
           setConfig(data.pomodoro);
           setRemaining(data.pomodoro.focus * 60 * 1000);
         }
       })
-      .catch(err => console.error(err));
+      .catch(err => console.error('Failed to fetch config', err));
+    // Load projects
+    const loadProjects = () => {
+      getProjects()
+        .then(setProjects)
+        .catch(err => console.error('Failed to fetch projects', err));
+    };
+    loadProjects();
+    // Refresh projects on timer done
+    window.ipc?.on('timer-done', loadProjects);
+    return () => {
+      window.ipc?.removeListener('timer-done', loadProjects);
+    };
   }, []);
 
   useEffect(() => {
-    const fetchTasks = () => {
-      getTasks()
+    if (!selectedProjectId) {
+      setTasks([]);
+      return;
+    }
+    // Load tasks for selected project
+    const fetchTasksByProject = () => {
+      getTasks(selectedProjectId)
         .then(setTasks)
         .catch(err => console.error('Failed to fetch tasks', err));
     };
-    fetchTasks();
-    window.addEventListener('tasks-updated', fetchTasks);
+    fetchTasksByProject();
+    // Refresh tasks on timer done or external updates
+    window.addEventListener('tasks-updated', fetchTasksByProject);
+    window.ipc?.on('timer-done', fetchTasksByProject);
     return () => {
-      window.removeEventListener('tasks-updated', fetchTasks);
+      window.removeEventListener('tasks-updated', fetchTasksByProject);
+      window.ipc?.removeListener('timer-done', fetchTasksByProject);
     };
-  }, []);
+  }, [selectedProjectId]);
 
   useEffect(() => {
     const onStartTask = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       const taskId = detail.taskId as string;
+      if (detail.projectId) setSelectedProjectId(detail.projectId);
       setSelectedTaskId(taskId);
       setMode('focus');
       const duration = config.focus * 60 * 1000;
@@ -82,7 +105,18 @@ const TimerCard: React.FC = () => {
 
   const handleStart = () => {
     setIsRunning(true);
-    window.ipc.send('timer-start', { type: mode, duration: remaining || config[mode] * 60 * 1000, taskId: selectedTaskId });
+    // Chỉ gửi taskId khi ở chế độ focus
+    const timerData = { 
+      type: mode, 
+      duration: remaining || config[mode] * 60 * 1000,
+      ...(mode === 'focus' && { taskId: selectedTaskId })
+    };
+    window.ipc.send('timer-start', timerData);
+    // Khi start task, cập nhật trạng thái project thành in-progress
+    if (mode === 'focus' && selectedProjectId) {
+      updateProject(selectedProjectId, { status: 'in-progress' })
+        .catch(err => console.error('Failed to update project status to in-progress:', err));
+    }
   };
 
   const handlePause = () => window.ipc.send('timer-pause');
@@ -105,31 +139,77 @@ const TimerCard: React.FC = () => {
 
   const selectedTask = tasks.find(task => task._id === selectedTaskId);
 
+  // Clear completed selected task and congratulate
+  useEffect(() => {
+    if (!selectedTaskId) return;
+    const cur = tasks.find(t => t._id === selectedTaskId);
+    if (cur && cur.status === 'done') {
+      alert(`Chúc mừng bạn đã hoàn thành công việc: ${cur.title}!`);
+      setSelectedTaskId('');
+    }
+  }, [tasks, selectedTaskId]);
+
+  // Khi tất cả tasks của project đều done, hỏi đánh dấu project completed
+  useEffect(() => {
+    if (!selectedProjectId || tasks.length === 0) return;
+    if (tasks.every(t => t.status === 'done')) {
+      const projectName = projects.find(p => p._id === selectedProjectId)?.name || '';
+      if (window.confirm(`Tất cả công việc của dự án "${projectName}" đã hoàn thành. Bạn có muốn đánh dấu dự án này là hoàn thành không?`)) {
+        updateProject(selectedProjectId, { completed: true, status: 'done' })
+          .catch(err => console.error('Failed to complete project:', err));
+      }
+    }
+  }, [tasks, selectedProjectId, projects]);
+
   return (
     <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-gray-700 dark:to-gray-600 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-600">
       <div className="flex flex-col lg:flex-row lg:items-center lg:space-x-8 space-y-6 lg:space-y-0">
         
-        {/* Task Selection */}
-        <div className="flex-1">
-          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-            Current Task
-          </label>
-        <select
-            className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-3 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-          value={selectedTaskId}
-          onChange={e => setSelectedTaskId(e.target.value)}
-        >
-            <option value="">Select a task to focus on</option>
-          {tasks.map(task => (
-            <option key={task._id} value={task._id}>{task.title}</option>
-          ))}
-        </select>
-          {selectedTask && (
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-              {selectedTask.description || 'No description'}
-            </p>
-          )}
-      </div>
+        {mode === 'focus' && (
+          <>
+            {/* Project Selection */}
+            <div className="flex-1 mb-4">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                Dự án
+              </label>
+              <select
+                value={selectedProjectId}
+                onChange={e => setSelectedProjectId(e.target.value)}
+                className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-3 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200"
+              >
+                <option value="">Chọn dự án</option>
+                {projects.map(p => (
+                  <option key={p._id} value={p._id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Task Selection */}
+            <div className="flex-1">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                Current Task
+              </label>
+              <select
+                className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-3 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                value={selectedTaskId}
+                onChange={e => setSelectedTaskId(e.target.value)}
+                disabled={!selectedProjectId}
+              >
+                <option value="">{selectedProjectId ? 'Chọn công việc' : 'Chọn dự án trước'}</option>
+                {tasks
+                  .filter(task => task.status !== 'done')
+                  .map(task => (
+                    <option key={task._id} value={task._id}>{task.title}</option>
+                  ))}
+              </select>
+              {selectedTask && (
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+                  {selectedTask.description || 'No description'}
+                </p>
+              )}
+            </div>
+          </>
+        )}
 
         {/* Mode Selection */}
         <div className="flex bg-white dark:bg-gray-800 rounded-xl p-1 shadow-sm">
@@ -196,38 +276,45 @@ const TimerCard: React.FC = () => {
 
           {/* Control Buttons */}
           <div className="flex space-x-3">
-        {!isRunning ? (
-          <button
-            onClick={handleStart}
-            disabled={!selectedTaskId}
+            {/* Start button, enabled always in break, only if selectedTaskId in focus */}
+            {!isRunning && (
+              <button
+                onClick={handleStart}
+                disabled={mode === 'focus' && !selectedTaskId}
                 className={`flex items-center space-x-2 px-6 py-3 rounded-xl font-medium transition-all duration-200 ${
-                  selectedTaskId
+                  (mode === 'focus' ? !!selectedTaskId : true)
                     ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white hover:from-green-600 hover:to-emerald-600 shadow-lg hover:shadow-xl transform hover:scale-105'
                     : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
                 }`}
               >
                 <FiPlay className="text-lg" />
-                <span>Start</span>
+                <span>{mode === 'focus' ? 'Bắt đầu tập trung' : 'Bắt đầu nghỉ'}</span>
               </button>
-        ) : (
-              <button
-                onClick={handlePause}
-                className="flex items-center space-x-2 px-6 py-3 rounded-xl font-medium bg-gradient-to-r from-yellow-500 to-orange-500 text-white hover:from-yellow-600 hover:to-orange-600 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200"
-              >
-                <FiPause className="text-lg" />
-                <span>Pause</span>
-              </button>
-        )}
-            
-        {!isRunning && remaining !== config[mode] * 60 * 1000 && (
+            )}
+            {/* Resume chỉ cho focus */}
+            {mode === 'focus' && !isRunning && remaining !== config[mode] * 60 * 1000 && (
               <button
                 onClick={handleResume}
                 className="flex items-center space-x-2 px-6 py-3 rounded-xl font-medium bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:from-blue-600 hover:to-purple-600 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200"
               >
                 <FiRefreshCw className="text-lg" />
-                <span>Resume</span>
+                <span>Tiếp tục tập trung</span>
               </button>
-        )}
+            )}
+            {/* Skip button only in break */}
+            {mode === 'break' && (
+              <button
+                onClick={() => {
+                  // Skip break and return to focus mode
+                  setMode('focus');
+                  setRemaining(config.focus * 60 * 1000);
+                  setIsRunning(false);
+                }}
+                className="flex items-center space-x-2 px-6 py-3 rounded-xl font-medium bg-gray-400 text-white hover:bg-gray-500 transition-all duration-200"
+              >
+                <span>Bỏ qua nghỉ</span>
+              </button>
+            )}
           </div>
         </div>
       </div>

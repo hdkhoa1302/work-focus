@@ -10,6 +10,7 @@ let remainingMs = 0;
 let currentType: 'focus' | 'break' = 'focus';
 let currentTaskId: string | undefined = undefined;
 let blockInterval: NodeJS.Timeout | null = null;
+let currentUserId: string | undefined;
 
 async function checkTaskCompletion(taskId?: string) {
   if (!taskId) return;
@@ -24,7 +25,8 @@ async function checkTaskCompletion(taskId?: string) {
 
 async function killBlockedApps() {
   try {
-    const config = await ConfigModel.findOne().lean();
+    if (!currentUserId) return;
+    const config = await ConfigModel.findOne({ userId: currentUserId }).lean();
     const apps: string[] = config?.blockList?.apps ?? [];
     apps.forEach(appName => {
       // kill processes matching appName
@@ -35,30 +37,62 @@ async function killBlockedApps() {
   }
 }
 
+// Website blocking disabled
+async function blockWebsites() {
+  // no-op
+}
+
+// Mở khóa website
+async function unblockWebsites() {
+  // no-op
+}
+
+ipcMain.on('user-logged-in', (event, args: { userId: string }) => {
+  currentUserId = args.userId;
+});
+
 export function setupTimer(tray: Tray) {
+  // Hàm cập nhật đồng hồ đếm ngược lên tray
+  const updateTray = (ms: number) => {
+    const mm = Math.floor(ms / 60000).toString().padStart(2, '0');
+    const ss = Math.floor((ms / 1000) % 60).toString().padStart(2, '0');
+    const text = `${mm}:${ss}`;
+    if (process.platform === 'darwin') {
+      tray.setTitle(text);
+    } else {
+      tray.setToolTip(`Remaining: ${text}`);
+    }
+  };
   ipcMain.on('timer-start', (event, args) => {
     const { type, duration, taskId } = args as { type: 'focus' | 'break'; duration: number; taskId?: string };
     if (type === 'focus') {
       killBlockedApps();
+      blockWebsites();
       if (blockInterval) clearInterval(blockInterval);
       blockInterval = setInterval(killBlockedApps, 5000);
+      // Chỉ cập nhật taskId trong chế độ focus
+      currentTaskId = taskId;
     } else {
+      unblockWebsites();
       if (blockInterval) {
         clearInterval(blockInterval);
         blockInterval = null;
       }
+      // Trong chế độ break, không cần liên kết với task
+      currentTaskId = undefined;
     }
     currentType = type;
-    currentTaskId = taskId;
     if (interval) clearInterval(interval);
     startTimestamp = Date.now();
     remainingMs = duration;
     event.sender.send('timer-tick', remainingMs);
+    updateTray(remainingMs);
     interval = setInterval(async () => {
       const elapsed = Date.now() - startTimestamp;
       const updatedRemaining = duration - elapsed;
       if (updatedRemaining <= 0) {
         clearInterval(interval!);
+        unblockWebsites();
         if (blockInterval) {
           clearInterval(blockInterval);
           blockInterval = null;
@@ -66,8 +100,14 @@ export function setupTimer(tray: Tray) {
         interval = null;
         event.sender.send('timer-tick', 0);
         event.sender.send('timer-done', { type: currentType });
+        // Xóa hiển thị countdown trên tray
+        if (process.platform === 'darwin') tray.setTitle('');
+        else tray.setToolTip('FocusTrack');
         try {
+          const uid = currentUserId;
+          if (!uid) console.error('Không có userId để lưu session');
           const session = await SessionModel.create({
+            userId: uid!,
             taskId: currentTaskId,
             type: currentType,
             startTime: new Date(startTimestamp),
@@ -80,11 +120,13 @@ export function setupTimer(tray: Tray) {
         }
       } else {
         event.sender.send('timer-tick', updatedRemaining);
+        updateTray(updatedRemaining);
       }
     }, 1000);
   });
 
   ipcMain.on('timer-pause', (event) => {
+    unblockWebsites();
     if (blockInterval) {
       clearInterval(blockInterval);
       blockInterval = null;
@@ -95,6 +137,8 @@ export function setupTimer(tray: Tray) {
       const elapsed = Date.now() - startTimestamp;
       remainingMs = remainingMs - elapsed;
       event.sender.send('timer-paused', remainingMs);
+      // Cập nhật tray khi pause
+      updateTray(remainingMs);
     }
   });
 
@@ -102,6 +146,7 @@ export function setupTimer(tray: Tray) {
     if (!interval && remainingMs > 0) {
       if (currentType === 'focus') {
         killBlockedApps();
+        blockWebsites();
         if (blockInterval) clearInterval(blockInterval);
         blockInterval = setInterval(killBlockedApps, 5000);
       }
@@ -111,6 +156,7 @@ export function setupTimer(tray: Tray) {
         const updatedRemaining = remainingMs - elapsed;
         if (updatedRemaining <= 0) {
           clearInterval(interval!);
+          unblockWebsites();
           if (blockInterval) {
             clearInterval(blockInterval);
             blockInterval = null;
@@ -118,8 +164,14 @@ export function setupTimer(tray: Tray) {
           interval = null;
           event.sender.send('timer-tick', 0);
           event.sender.send('timer-done', { type: currentType });
+          // Xóa hiển thị countdown trên tray
+          if (process.platform === 'darwin') tray.setTitle('');
+          else tray.setToolTip('FocusTrack');
           try {
+            const uid = currentUserId;
+            if (!uid) console.error('Không có userId để lưu session');
             const session = await SessionModel.create({
+              userId: uid!,
               taskId: currentTaskId,
               type: currentType,
               startTime: new Date(startTimestamp),
@@ -132,6 +184,7 @@ export function setupTimer(tray: Tray) {
           }
         } else {
           event.sender.send('timer-tick', updatedRemaining);
+          updateTray(updatedRemaining);
         }
       }, 1000);
     }

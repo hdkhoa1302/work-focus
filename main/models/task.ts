@@ -2,6 +2,8 @@ import { Schema, model } from 'mongoose';
 
 const TaskSchema = new Schema(
   {
+    userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    projectId: { type: Schema.Types.ObjectId, ref: 'Project', required: true },
     title: { type: String, required: true },
     description: { type: String, default: '' },
     tags: { type: [String], default: [] },
@@ -13,4 +15,8 @@ const TaskSchema = new Schema(
   { timestamps: true }
 );
 
-export const TaskModel = model('Task', TaskSchema); 
+// Index for better query performance
+TaskSchema.index({ userId: 1, status: 1 });
+TaskSchema.index({ userId: 1, createdAt: -1 });
+
+export const TaskModel = model('Task', TaskSchema);

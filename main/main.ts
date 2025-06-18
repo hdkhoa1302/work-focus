@@ -1,10 +1,11 @@
 // main/main.ts - entry Electron Main Process
 import * as dotenv from 'dotenv';
-import { connectDB } from './db';
+import { connectDB } from './config/database';
 import { setupAPI } from './api';
-import { app, BrowserWindow, Tray, nativeImage } from 'electron';
+import { app, BrowserWindow, Tray, nativeImage, ipcMain } from 'electron';
 import * as path from 'path';
 import { setupTimer } from './timer';
+import psList from 'ps-list';
 
 // Load env và khởi DB/API
 dotenv.config();
@@ -12,6 +13,19 @@ dotenv.config();
   await connectDB();
   setupAPI();
 })();
+
+// Tự động reload Electron khi có thay đổi file trong thư mục dist/main (chỉ dev mode)
+const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
+if (isDev) {
+  try {
+    require('electron-reload')(__dirname, {
+      electron: process.execPath,
+      awaitWriteFinish: true,
+    });
+  } catch (err) {
+    console.log('electron-reload not available in production');
+  }
+}
 
 let tray: Tray;
 function createTray() {
@@ -22,7 +36,7 @@ function createTray() {
 }
 
 function createWindow() {
-  const isDev = process.env.NODE_ENV !== 'production';
+  const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
   const win = new BrowserWindow({
     width: 1024,
     height: 768,
@@ -47,4 +61,16 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
-}); 
+});
+
+// IPC handler để lấy danh sách ứng dụng đang chạy
+ipcMain.on('get-running-apps', async (event) => {
+  try {
+    const processes = await psList();
+    const names = Array.from(new Set(processes.map(p => p.name))).sort();
+    event.sender.send('running-apps-response', names);
+  } catch (err) {
+    console.error('Error fetching running apps:', err);
+    event.sender.send('running-apps-response', []);
+  }
+});

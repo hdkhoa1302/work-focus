@@ -1,25 +1,48 @@
-import React, { useState } from 'react';
-import { createTask, Task } from '../services/api';
+import React, { useState, useEffect } from 'react';
+import { createTask, Task, getProjects, Project } from '../services/api';
 import { AiOutlinePlus, AiOutlineCalendar, AiOutlineFire } from 'react-icons/ai';
+import TipTapEditor from './TipTapEditor';
+import useLanguage from '../hooks/useLanguage';
 
 interface TaskFormProps {
   onSave: (task: Task) => void;
 }
 
 const TaskForm: React.FC<TaskFormProps> = ({ onSave }) => {
+  const { t } = useLanguage();
   const [title, setTitle] = useState('');
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectId, setProjectId] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState(0);
   const [deadline, setDeadline] = useState('');
   const [estimatedPomodoros, setEstimatedPomodoros] = useState(1);
   const [isExpanded, setIsExpanded] = useState(false);
 
+  // Load projects
+  useEffect(() => {
+    const loadProjects = async () => {
+      try {
+        const data = await getProjects();
+        setProjects(data);
+      } catch (err) {
+        console.error('Failed to load projects', err);
+      }
+    };
+    loadProjects();
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!projectId) {
+      alert(t('tasks.projectRequired'));
+      return;
+    }
     if (!title.trim()) return;
     
     try {
       const newTask = await createTask({
+        projectId,
         title,
         description,
         priority,
@@ -31,6 +54,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ onSave }) => {
       
       // Reset form
       setTitle('');
+      setProjectId('');
       setDescription('');
       setPriority(0);
       setDeadline('');
@@ -58,21 +82,36 @@ const TaskForm: React.FC<TaskFormProps> = ({ onSave }) => {
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700 mb-6">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Create New Task</h2>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('tasks.createNewTask')}</h2>
         <button
           onClick={() => setIsExpanded(!isExpanded)}
           className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
         >
-          {isExpanded ? 'Simple' : 'Advanced'}
+          {isExpanded ? t('common.simple') : t('common.advanced')}
         </button>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Project Selection */}
+        <div>
+          <select
+            value={projectId}
+            onChange={e => setProjectId(e.target.value)}
+            required
+            className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-3 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+          >
+            <option value="">{t('tasks.selectProject')}</option>
+            {projects.map(p => (
+              <option key={p._id} value={p._id}>{p.name}</option>
+            ))}
+          </select>
+        </div>
+
         {/* Title - Always visible */}
         <div>
           <input
             type="text"
-            placeholder="What do you want to accomplish?"
+            placeholder={t('tasks.taskTitle')}
             value={title}
             onChange={e => setTitle(e.target.value)}
             required
@@ -84,12 +123,14 @@ const TaskForm: React.FC<TaskFormProps> = ({ onSave }) => {
         {isExpanded && (
           <>
             <div>
-              <textarea
-                placeholder="Add a description (optional)"
-                value={description}
-                onChange={e => setDescription(e.target.value)}
-                rows={3}
-                className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-3 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 resize-none"
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                {t('tasks.description')}
+              </label>
+              <TipTapEditor
+                content={description}
+                onChange={setDescription}
+                placeholder={t('tasks.description')}
+                className="focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent transition-all duration-200"
               />
             </div>
 
@@ -97,7 +138,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ onSave }) => {
               {/* Priority */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Priority
+                  {t('tasks.priority.title')}
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   {Object.entries(priorityLabels).map(([value, label]) => (
@@ -111,7 +152,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ onSave }) => {
                           : 'bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-400 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600'
                       }`}
                     >
-                      {label}
+                      {t(`tasks.priority.${['low','medium','high','urgent'][Number(value)]}`)}
                     </button>
                   ))}
                 </div>
@@ -121,7 +162,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ onSave }) => {
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   <AiOutlineFire className="inline mr-1" />
-                  Pomodoros
+                  {t('tasks.estimatedPomodoros')}
                 </label>
                 <input
                   type="number"
@@ -137,7 +178,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ onSave }) => {
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   <AiOutlineCalendar className="inline mr-1" />
-                  Deadline
+                  {t('tasks.deadline')}
                 </label>
                 <input
                   type="datetime-local"
@@ -156,7 +197,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ onSave }) => {
           className="w-full md:w-auto flex items-center justify-center space-x-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white px-6 py-3 rounded-xl font-medium hover:from-blue-600 hover:to-purple-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
         >
           <AiOutlinePlus className="text-lg" />
-          <span>Create Task</span>
+          <span>{t('tasks.createTask')}</span>
         </button>
       </form>
     </div>

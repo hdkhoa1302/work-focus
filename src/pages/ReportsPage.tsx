@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { getTasks, Task, getSessions, Session } from '../services/api';
 import { ResponsiveContainer, BarChart, CartesianGrid, XAxis, YAxis, Tooltip, Legend, Bar, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import { AiOutlineFire, AiOutlineClockCircle, AiOutlineTrophy, AiOutlineCalendar } from 'react-icons/ai';
+import useLanguage from '../hooks/useLanguage';
 
 interface ChartData {
   title: string;
@@ -16,6 +17,7 @@ interface DailyData {
 }
 
 const ReportsPage: React.FC = () => {
+  const { t } = useLanguage();
   const [taskData, setTaskData] = useState<ChartData[]>([]);
   const [dailyData, setDailyData] = useState<DailyData[]>([]);
   const [stats, setStats] = useState({
@@ -104,12 +106,12 @@ const ReportsPage: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Reports & Analytics</h1>
-          <p className="text-gray-600 dark:text-gray-400">Track your productivity and focus patterns</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t('reports.title')}</h1>
+          <p className="text-gray-600 dark:text-gray-400">{t('reports.subtitle')}</p>
         </div>
         <div className="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
           <AiOutlineCalendar />
-          <span>Last 7 days</span>
+          <span>{t('reports.last7Days')}</span>
         </div>
       </div>
 
@@ -118,7 +120,7 @@ const ReportsPage: React.FC = () => {
         <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl p-6 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-blue-100 text-sm font-medium">Total Pomodoros</p>
+              <p className="text-blue-100 text-sm font-medium">{t('reports.totalPomodoros')}</p>
               <p className="text-3xl font-bold">{stats.totalPomodoros}</p>
             </div>
             <div className="w-12 h-12 bg-white bg-opacity-20 rounded-lg flex items-center justify-center">
@@ -130,7 +132,7 @@ const ReportsPage: React.FC = () => {
         <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-xl p-6 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-green-100 text-sm font-medium">Focus Time</p>
+              <p className="text-green-100 text-sm font-medium">{t('reports.focusTime')}</p>
               <p className="text-3xl font-bold">{stats.totalFocusTime}m</p>
             </div>
             <div className="w-12 h-12 bg-white bg-opacity-20 rounded-lg flex items-center justify-center">
@@ -142,7 +144,7 @@ const ReportsPage: React.FC = () => {
         <div className="bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl p-6 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-purple-100 text-sm font-medium">Avg Session</p>
+              <p className="text-purple-100 text-sm font-medium">{t('reports.avgSession')}</p>
               <p className="text-3xl font-bold">{stats.averageSessionLength}m</p>
             </div>
             <div className="w-12 h-12 bg-white bg-opacity-20 rounded-lg flex items-center justify-center">
@@ -154,7 +156,7 @@ const ReportsPage: React.FC = () => {
         <div className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl p-6 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-orange-100 text-sm font-medium">Completion Rate</p>
+              <p className="text-orange-100 text-sm font-medium">{t('reports.completionRate')}</p>
               <p className="text-3xl font-bold">{stats.completionRate}%</p>
             </div>
             <div className="w-12 h-12 bg-white bg-opacity-20 rounded-lg flex items-center justify-center">
@@ -168,7 +170,7 @@ const ReportsPage: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Daily Progress Chart */}
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-6">Daily Progress</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-6">{t('reports.dailyProgress')}</h2>
           {dailyData.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={dailyData}>
@@ -197,20 +199,20 @@ const ReportsPage: React.FC = () => {
                   stroke="#3B82F6" 
                   strokeWidth={3}
                   dot={{ fill: '#3B82F6', strokeWidth: 2, r: 4 }}
-                  name="Pomodoros"
+                  name={t('reports.pomodoros')}
                 />
               </LineChart>
             </ResponsiveContainer>
           ) : (
             <div className="flex items-center justify-center h-64 text-gray-500 dark:text-gray-400">
-              <p>No data available for the chart</p>
+              <p>{t('reports.noChartData')}</p>
             </div>
           )}
         </div>
 
         {/* Task Distribution Pie Chart */}
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-6">Task Distribution</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-6">{t('reports.taskDistribution')}</h2>
           {pieData.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
@@ -233,7 +235,7 @@ const ReportsPage: React.FC = () => {
             </ResponsiveContainer>
           ) : (
             <div className="flex items-center justify-center h-64 text-gray-500 dark:text-gray-400">
-              <p>No task data available</p>
+              <p>{t('reports.noTaskData')}</p>
             </div>
           )}
         </div>
@@ -241,23 +243,23 @@ const ReportsPage: React.FC = () => {
 
       {/* Task Performance Table */}
       <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-6">Task Performance</h2>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-6">{t('reports.taskPerformance')}</h2>
         {taskData.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
               <thead className="bg-gray-50 dark:bg-gray-700">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Task
+                    {t('reports.task')}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Pomodoros
+                    {t('reports.pomodoros')}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Focus Time
+                    {t('reports.focusTimeLabel')}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Progress
+                    {t('reports.progress')}
                   </th>
                 </tr>
               </thead>
@@ -301,8 +303,8 @@ const ReportsPage: React.FC = () => {
         ) : (
           <div className="text-center py-8 text-gray-500 dark:text-gray-400">
             <AiOutlineTrophy className="text-4xl mx-auto mb-4" />
-            <p>No task performance data available yet.</p>
-            <p className="text-sm">Complete some Pomodoro sessions to see your progress!</p>
+            <p>{t('reports.noPerformanceData')}</p>
+            <p className="text-sm">{t('reports.completePomodorosToSeeProgress')}</p>
           </div>
         )}
       </div>

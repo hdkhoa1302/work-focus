@@ -10,7 +10,9 @@
     "edit": "Chỉnh sửa",
     "complete": "Hoàn thành",
     "search": "Tìm kiếm",
-    "all": "Tất cả"
+    "all": "Tất cả",
+    "simple": "Đơn giản",
+    "advanced": "Nâng cao"
   },
   "navigation": {
     "dashboard": "Tổng quan",
@@ -18,6 +20,24 @@
     "projects": "Dự án",
     "reports": "Báo cáo",
     "settings": "Cài đặt"
+  },
+  "auth": {
+    "welcomeBack": "Chào mừng trở lại",
+    "signInDescription": "Đăng nhập vào tài khoản FocusTrack của bạn",
+    "emailAddress": "Địa chỉ Email",
+    "password": "Mật khẩu",
+    "enterEmail": "Nhập email của bạn",
+    "enterPassword": "Nhập mật khẩu của bạn",
+    "rememberMe": "Ghi nhớ đăng nhập",
+    "forgotPassword": "Quên mật khẩu?",
+    "signIn": "Đăng nhập",
+    "signingIn": "Đang đăng nhập...",
+    "signUp": "Đăng ký",
+    "noAccount": "Chưa có tài khoản?",
+    "emailRequired": "Vui lòng nhập email",
+    "emailInvalid": "Email không hợp lệ",
+    "passwordRequired": "Vui lòng nhập mật khẩu",
+    "passwordMinLength": "Mật khẩu phải có ít nhất 6 ký tự"
   },
   "tasks": {
     "title": "Công việc",
@@ -132,4 +152,4 @@
     "noPerformanceData": "Chưa có dữ liệu hiệu suất công việc.",
     "completePomodorosToSeeProgress": "Hoàn thành một số phiên Pomodoro để xem tiến trình của bạn!"
   }
-} 
+}

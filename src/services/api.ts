@@ -5,12 +5,28 @@ const api = axios.create({ baseURL: API_BASE });
 
 // Thêm interceptor để gắn JWT token vào Authorization header
 api.interceptors.request.use((config) => {
+  // Check both localStorage and sessionStorage for token
   const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
   if (token && config.headers) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
+
+// Add response interceptor to handle token expiration
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401 || error.response?.status === 403) {
+      // Token expired or invalid, clear storage and redirect to login
+      localStorage.removeItem('authToken');
+      sessionStorage.removeItem('authToken');
+      // Optionally trigger a logout event or redirect
+      window.location.reload();
+    }
+    return Promise.reject(error);
+  }
+);
 
 export interface Task {
   _id: string;
@@ -34,6 +50,61 @@ export interface Session {
   endTime?: string;
   duration?: number;
 }
+
+export interface WhiteboardItem {
+  id: string;
+  type: 'project' | 'task' | 'note' | 'decision';
+  title: string;
+  description: string;
+  status: 'pending' | 'confirmed' | 'completed';
+  createdAt: Date;
+  relatedTo?: string;
+  priority?: number;
+  tags?: string[];
+}
+
+export interface Message {
+  from: 'user' | 'bot';
+  text: string;
+  timestamp: Date;
+  type?: 'text' | 'project' | 'task' | 'analysis' | 'encouragement' | 'note' | 'decision' | 'whiteboard';
+  data?: any;
+}
+
+export interface Conversation {
+  _id: string;
+  userId: string;
+  title: string;
+  messages: Message[];
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Conversation APIs
+export const getConversations = async (): Promise<Conversation[]> => {
+  const resp = await api.get<Conversation[]>('/api/conversations');
+  return resp.data;
+};
+
+export const createConversation = async (title?: string): Promise<Conversation> => {
+  const resp = await api.post<Conversation>('/api/conversations', { title });
+  return resp.data;
+};
+
+export const getConversation = async (id: string): Promise<Conversation> => {
+  const resp = await api.get<Conversation>(`/api/conversations/${id}`);
+  return resp.data;
+};
+
+export const activateConversation = async (id: string): Promise<Conversation> => {
+  const resp = await api.put<Conversation>(`/api/conversations/${id}/activate`);
+  return resp.data;
+};
+
+export const deleteConversation = async (id: string): Promise<void> => {
+  await api.delete(`/api/conversations/${id}`);
+};
 
 export const getTasks = async (projectId?: string): Promise<Task[]> => {
   const resp = await api.get<Task[]>('/api/tasks', { params: projectId ? { projectId } : {} });
@@ -107,20 +178,20 @@ export const deleteProject = async (id: string): Promise<void> => {
   await api.delete(`/api/projects/${id}`);
 };
 
-// Interfaces và API cho AI chat
+// Interfaces và API cho AI chat với whiteboard context
 export interface AIChatRequest {
-  model: string;
-  contents: string;
-  generationConfig?: {
-    temperature?: number;
-    candidateCount?: number;
-    topP?: number;
-    topK?: number;
-  };
+  message: string;
+  conversationId?: string;
+  whiteboardContext?: WhiteboardItem[];
 }
+
 export interface AIChatResponse {
-  text: string;
+  message: string;
+  type: string;
+  data?: any;
+  conversationId: string;
 }
+
 export const postAIChat = async (payload: AIChatRequest): Promise<AIChatResponse> => {
   const resp = await api.post<AIChatResponse>('/api/ai/chat', payload);
   return resp.data;
@@ -137,4 +208,57 @@ export interface SuggestResponse {
 export const getSuggestions = async (): Promise<SuggestResponse> => {
   const resp = await api.post<SuggestResponse>('/api/ai/suggest');
   return resp.data;
-}; 
+};
+
+// AI Analysis APIs
+export interface AnalysisResponse {
+  stats: {
+    totalTasks: number;
+    completedTasks: number;
+    completionRate: number;
+    activeProjects: number;
+    completedProjects: number;
+    totalFocusTime: number;
+    totalSessions: number;
+  };
+  analysis: string;
+  recommendations: string[];
+}
+
+export const getAnalysis = async (): Promise<AnalysisResponse> => {
+  const resp = await api.post<AnalysisResponse>('/api/ai/analyze');
+  return resp.data;
+};
+
+export interface EncouragementResponse {
+  message: string;
+  achievements?: string[];
+  stats?: {
+    completedTasks: number;
+    totalSessions: number;
+    todayTasks: number;
+    taskSessions: number;
+  };
+}
+
+export const getEncouragement = async (taskId: string): Promise<EncouragementResponse> => {
+  const resp = await api.post<EncouragementResponse>('/api/ai/encourage', { taskId });
+  return resp.data;
+};
+
+// New Proactive Feedback API
+export interface ProactiveFeedbackResponse {
+  feedback: string;
+  stats: {
+    completionRate: number;
+    todayPomodoros: number;
+    activeProjects: number;
+    totalFocusTime: number;
+  };
+  timestamp: Date;
+}
+
+export const getProactiveFeedback = async (): Promise<ProactiveFeedbackResponse> => {
+  const resp = await api.post<ProactiveFeedbackResponse>('/api/ai/proactive-feedback');
+  return resp.data;
+};

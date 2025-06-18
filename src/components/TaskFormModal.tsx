@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createTask, Task, getProjects, Project } from '../services/api';
 import { AiOutlinePlus, AiOutlineCalendar, AiOutlineFire, AiOutlineClose, AiOutlineTag } from 'react-icons/ai';
+import TipTapEditor from './TipTapEditor';
 import useLanguage from '../hooks/useLanguage';
 
 interface TaskFormModalProps {
@@ -191,12 +192,11 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSave }
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               {t('tasks.description')}
             </label>
-            <textarea
-              value={formData.description}
-              onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-              rows={3}
-              className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 resize-none"
+            <TipTapEditor
+              content={formData.description}
+              onChange={(value) => setFormData(prev => ({ ...prev, description: value }))}
               placeholder="Add more details about this task..."
+              className="focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent transition-all duration-200"
             />
           </div>
 

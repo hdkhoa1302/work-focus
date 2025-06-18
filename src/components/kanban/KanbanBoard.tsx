@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { getTasks, updateTask, deleteTask, Task, getSessions, Session } from '../../services/api';
 import KanbanCard from './KanbanCard';
+import TaskDetailModal from '../TaskDetailModal';
 import { AiOutlinePlus, AiOutlineFilter, AiOutlineSearch } from 'react-icons/ai';
 import { FiGrid, FiList } from 'react-icons/fi';
 import useLanguage from '../../hooks/useLanguage';
@@ -20,6 +21,8 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ onCreateTask, onStartTask, pr
   const [filterPriority, setFilterPriority] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [showTaskDetail, setShowTaskDetail] = useState(false);
 
   const statuses = ['todo', 'in-progress', 'done'] as const;
   type Status = typeof statuses[number];
@@ -81,6 +84,16 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ onCreateTask, onStartTask, pr
         console.error('Failed to delete task:', error);
       }
     }
+  };
+
+  const handleViewDetails = (task: Task) => {
+    setSelectedTask(task);
+    setShowTaskDetail(true);
+  };
+
+  const handleUpdateTask = (updatedTask: Task) => {
+    setTasks(prev => prev.map(t => t._id === updatedTask._id ? updatedTask : t));
+    setSelectedTask(updatedTask);
   };
 
   const onDragEnd = async (result: DropResult) => {
@@ -248,6 +261,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ onCreateTask, onStartTask, pr
                                 progress={getTaskProgress(task._id)}
                                 onDelete={() => handleDelete(task._id)}
                                 onStart={() => onStartTask(task._id)}
+                                onViewDetails={() => handleViewDetails(task)}
                                 isDragging={snapshot.isDragging}
                               />
                             </div>
@@ -277,6 +291,25 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ onCreateTask, onStartTask, pr
           })}
         </div>
       </DragDropContext>
+
+      {/* Task Detail Modal */}
+      {selectedTask && (
+        <TaskDetailModal
+          task={selectedTask}
+          isOpen={showTaskDetail}
+          onClose={() => {
+            setShowTaskDetail(false);
+            setSelectedTask(null);
+          }}
+          onUpdate={handleUpdateTask}
+          onDelete={() => {
+            setTasks(prev => prev.filter(t => t._id !== selectedTask._id));
+            setShowTaskDetail(false);
+            setSelectedTask(null);
+          }}
+          onStart={() => onStartTask(selectedTask._id)}
+        />
+      )}
     </div>
   );
 };

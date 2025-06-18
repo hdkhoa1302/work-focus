@@ -41,15 +41,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // Check for existing session
     const checkSession = async () => {
       try {
-        const token = localStorage.getItem('authToken');
+        // Check both localStorage and sessionStorage for token
+        const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
         if (token) {
           try {
             const { data: userData } = await api.get<User>('/api/auth/validate');
             setUser(userData);
-            window.ipc.send('user-logged-in', { userId: userData.id });
+            window.ipc?.send('user-logged-in', { userId: userData.id });
           } catch (err) {
             console.error('Session validation failed:', err);
+            // Clear invalid tokens from both storages
             localStorage.removeItem('authToken');
+            sessionStorage.removeItem('authToken');
           }
         }
       } catch (err) {
@@ -69,18 +72,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const { data } = await api.post<{ message: string; user: User; token: string }>('/api/auth/login', { email, password });
       const { user: userData, token } = data;
       
-      // Luôn lưu token vào localStorage để ghi nhớ đăng nhập
-      localStorage.setItem('authToken', token);
+      // Save token based on remember preference
+      if (remember) {
+        localStorage.setItem('authToken', token);
+        // Remove from sessionStorage if exists
+        sessionStorage.removeItem('authToken');
+      } else {
+        sessionStorage.setItem('authToken', token);
+        // Remove from localStorage if exists
+        localStorage.removeItem('authToken');
+      }
       
       setUser(userData);
-      window.ipc.send('user-logged-in', { userId: userData.id });
+      window.ipc?.send('user-logged-in', { userId: userData.id });
+      
       // Chuyển URL về root để vào Dashboard
       if (typeof window !== 'undefined' && window.history && window.history.replaceState) {
         window.history.replaceState({}, '', '/');
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
-      throw err;
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.message || err.message || 'Login failed';
+      setError(errorMessage);
+      throw new Error(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -91,33 +104,43 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setError(null);
     try {
       const { data } = await api.post<{ message: string; user: User; token: string }>('/api/auth/register', { email, password, name });
+      
+      // For registration, always save to localStorage (remember by default)
       localStorage.setItem('authToken', data.token);
+      sessionStorage.removeItem('authToken');
+      
       setUser(data.user);
-      window.ipc.send('user-logged-in', { userId: data.user.id });
+      window.ipc?.send('user-logged-in', { userId: data.user.id });
+      
       // Chuyển URL về root để vào Dashboard
       if (typeof window !== 'undefined' && window.history && window.history.replaceState) {
         window.history.replaceState({}, '', '/');
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Registration failed');
-      throw err;
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.message || err.message || 'Registration failed';
+      setError(errorMessage);
+      throw new Error(errorMessage);
     } finally {
       setIsLoading(false);
     }
   };
 
   const logout = () => {
+    // Clear tokens from both storages
     localStorage.removeItem('authToken');
+    sessionStorage.removeItem('authToken');
     setUser(null);
+    setError(null);
   };
 
   const resetPassword = async (email: string) => {
     setError(null);
     try {
       await api.post('/api/auth/reset-password', { email });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Password reset failed');
-      throw err;
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.message || err.message || 'Password reset failed';
+      setError(errorMessage);
+      throw new Error(errorMessage);
     }
   };
 

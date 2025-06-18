@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Task } from '../../services/api';
-import { AiOutlineDelete, AiOutlineEdit, AiOutlineCalendar, AiOutlineFire, AiOutlineFlag } from 'react-icons/ai';
+import { Task, updateTask } from '../../services/api';
+import { AiOutlineDelete, AiOutlineEdit, AiOutlineCalendar, AiOutlineFire, AiOutlineFlag, AiOutlineEye } from 'react-icons/ai';
 import { FiPlay, FiClock, FiCheckCircle } from 'react-icons/fi';
 
 interface KanbanCardProps {
@@ -12,6 +12,7 @@ interface KanbanCardProps {
   };
   onDelete: () => void;
   onStart: () => void;
+  onViewDetails: () => void;
   isDragging?: boolean;
 }
 
@@ -20,6 +21,7 @@ const KanbanCard: React.FC<KanbanCardProps> = ({
   progress,
   onDelete,
   onStart,
+  onViewDetails,
   isDragging = false
 }) => {
   const [isHovered, setIsHovered] = useState(false);
@@ -38,6 +40,22 @@ const KanbanCard: React.FC<KanbanCardProps> = ({
       window.ipc?.removeListener('timer-done', handleDone);
     };
   }, [task._id]);
+
+  const handleMarkComplete = async () => {
+    try {
+      await updateTask(task._id, { status: 'done' });
+      
+      // Trigger encouragement modal
+      window.dispatchEvent(new CustomEvent('task-completed', {
+        detail: { taskId: task._id, taskTitle: task.title }
+      }));
+      
+      // Refresh tasks
+      window.dispatchEvent(new Event('tasks-updated'));
+    } catch (error) {
+      console.error('Failed to mark task as complete:', error);
+    }
+  };
 
   const getPriorityConfig = (priority: number = 0) => {
     switch (priority) {
@@ -104,11 +122,12 @@ const KanbanCard: React.FC<KanbanCardProps> = ({
 
   return (
     <div
-      className={`bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all duration-300 ${
+      className={`bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer ${
         isDragging ? 'shadow-xl ring-2 ring-blue-500 ring-opacity-50' : ''
       } backdrop-blur-sm bg-opacity-95 dark:bg-opacity-90`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
+      onClick={onViewDetails}
     >
       {/* Header */}
       <div className="flex items-start justify-between mb-3">
@@ -127,6 +146,16 @@ const KanbanCard: React.FC<KanbanCardProps> = ({
         <div className={`flex items-center space-x-1 transition-all duration-300 ${
           isHovered ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
         }`}>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onViewDetails();
+            }}
+            className="p-1.5 text-blue-500 hover:text-blue-600 rounded-full hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-300"
+            title="Xem chi tiết"
+          >
+            <AiOutlineEye className="w-4 h-4" />
+          </button>
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -212,32 +241,56 @@ const KanbanCard: React.FC<KanbanCardProps> = ({
             <span>Đang thực hiện</span>
           </button>
         ) : task.status === 'in-progress' ? (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onStart();
-            }}
-            className="w-full flex items-center justify-center space-x-2 py-2 px-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all duration-300 text-sm font-medium shadow-sm hover:shadow-md transform hover:translate-y-[-1px]"
-          >
-            <FiPlay className="w-4 h-4" />
-            <span>Bắt đầu tập trung</span>
-          </button>
+          <div className="flex space-x-2">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onStart();
+              }}
+              className="flex-1 flex items-center justify-center space-x-2 py-2 px-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all duration-300 text-sm font-medium shadow-sm hover:shadow-md transform hover:translate-y-[-1px]"
+            >
+              <FiPlay className="w-4 h-4" />
+              <span>Bắt đầu</span>
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleMarkComplete();
+              }}
+              className="px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all duration-300 text-sm font-medium shadow-sm hover:shadow-md transform hover:translate-y-[-1px]"
+              title="Đánh dấu hoàn thành"
+            >
+              <FiCheckCircle className="w-4 h-4" />
+            </button>
+          </div>
         ) : task.status === 'done' ? (
           <div className="w-full flex items-center justify-center space-x-2 py-2 px-3 bg-gradient-to-r from-green-100 to-emerald-100 dark:from-green-900/40 dark:to-emerald-900/40 text-green-700 dark:text-green-300 rounded-lg text-sm font-medium shadow-sm">
             <FiCheckCircle className="w-4 h-4" />
             <span>Đã hoàn thành</span>
           </div>
         ) : (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onStart();
-            }}
-            className="w-full flex items-center justify-center space-x-2 py-2 px-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-all duration-300 text-sm font-medium shadow-sm hover:shadow-md transform hover:translate-y-[-1px]"
-          >
-            <FiClock className="w-4 h-4" />
-            <span>Sẵn sàng bắt đầu</span>
-          </button>
+          <div className="flex space-x-2">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onStart();
+              }}
+              className="flex-1 flex items-center justify-center space-x-2 py-2 px-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-all duration-300 text-sm font-medium shadow-sm hover:shadow-md transform hover:translate-y-[-1px]"
+            >
+              <FiClock className="w-4 h-4" />
+              <span>Sẵn sàng</span>
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleMarkComplete();
+              }}
+              className="px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all duration-300 text-sm font-medium shadow-sm hover:shadow-md transform hover:translate-y-[-1px]"
+              title="Đánh dấu hoàn thành"
+            >
+              <FiCheckCircle className="w-4 h-4" />
+            </button>
+          </div>
         )}
       </div>
     </div>

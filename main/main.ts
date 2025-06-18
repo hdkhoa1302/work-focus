@@ -15,11 +15,16 @@ dotenv.config();
 })();
 
 // Tự động reload Electron khi có thay đổi file trong thư mục dist/main (chỉ dev mode)
-if (process.env.NODE_ENV !== 'production') {
-  require('electron-reload')(__dirname, {
-    electron: process.execPath,
-    awaitWriteFinish: true,
-  });
+const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
+if (isDev) {
+  try {
+    require('electron-reload')(__dirname, {
+      electron: process.execPath,
+      awaitWriteFinish: true,
+    });
+  } catch (err) {
+    console.log('electron-reload not available in production');
+  }
 }
 
 let tray: Tray;
@@ -31,7 +36,7 @@ function createTray() {
 }
 
 function createWindow() {
-  const isDev = process.env.NODE_ENV !== 'production';
+  const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
   const win = new BrowserWindow({
     width: 1024,
     height: 768,

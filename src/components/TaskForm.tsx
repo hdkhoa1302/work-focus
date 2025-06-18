@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createTask, Task, getProjects, Project } from '../services/api';
 import { AiOutlinePlus, AiOutlineCalendar, AiOutlineFire } from 'react-icons/ai';
+import TipTapEditor from './TipTapEditor';
 import useLanguage from '../hooks/useLanguage';
 
 interface TaskFormProps {
@@ -122,12 +123,14 @@ const TaskForm: React.FC<TaskFormProps> = ({ onSave }) => {
         {isExpanded && (
           <>
             <div>
-              <textarea
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                {t('tasks.description')}
+              </label>
+              <TipTapEditor
+                content={description}
+                onChange={setDescription}
                 placeholder={t('tasks.description')}
-                value={description}
-                onChange={e => setDescription(e.target.value)}
-                rows={3}
-                className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-3 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 resize-none"
+                className="focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent transition-all duration-200"
               />
             </div>
 

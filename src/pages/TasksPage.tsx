@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { getTasks, deleteTask, updateTask, Task, getSessions, Session } from '../services/api';
 import TaskForm from '../components/TaskForm';
-import { AiOutlineDelete } from 'react-icons/ai';
+import TaskDetailModal from '../components/TaskDetailModal';
+import { AiOutlineDelete, AiOutlineEye, AiOutlineEdit } from 'react-icons/ai';
 import { DragDropContext, Droppable, Draggable, DropResult, DroppableProvided, DraggableProvided } from '@hello-pangea/dnd';
 import useLanguage from '../hooks/useLanguage';
 
@@ -11,6 +12,8 @@ const TasksPage: React.FC = () => {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [filter, setFilter] = useState<'all' | 'todo' | 'in-progress' | 'done'>('all');
   const [sortBy, setSortBy] = useState<'created' | 'priority' | 'deadline'>('created');
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [showTaskDetail, setShowTaskDetail] = useState(false);
 
   useEffect(() => {
     async function fetchData() {
@@ -49,6 +52,16 @@ const TasksPage: React.FC = () => {
     } catch (error) {
       console.error('Failed to update task:', error);
     }
+  };
+
+  const handleViewDetails = (task: Task) => {
+    setSelectedTask(task);
+    setShowTaskDetail(true);
+  };
+
+  const handleUpdateTask = (updatedTask: Task) => {
+    setTasks(prev => prev.map(t => t._id === updatedTask._id ? updatedTask : t));
+    setSelectedTask(updatedTask);
   };
 
   const filteredTasks = tasks.filter(task => {
@@ -137,8 +150,8 @@ const TasksPage: React.FC = () => {
           <Droppable droppableId={status} key={status}>
             {(provided: DroppableProvided) => (
               <div ref={provided.innerRef} {...provided.droppableProps}
-                   className="bg-white dark:bg-gray-800 rounded-xl p-4">
-                <h2 className="text-lg font-semibold mb-3">
+                   className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700">
+                <h2 className="text-lg font-semibold mb-3 text-gray-900 dark:text-gray-100">
                   {t(`kanban.${status === 'in-progress' ? 'inProgress' : status}`)}
                 </h2>
                 {tasksByStatus[status].map((task: Task, index: number) => {
@@ -147,38 +160,90 @@ const TasksPage: React.FC = () => {
                     <Draggable draggableId={task._id} index={index} key={task._id}>
                       {(provided: DraggableProvided) => (
                         <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}
-                             className="mb-3 p-4 rounded-lg border shadow-sm bg-gray-50 dark:bg-gray-700">
+                             className="mb-3 p-4 rounded-lg border shadow-sm bg-gray-50 dark:bg-gray-700 hover:shadow-md transition-all duration-200 cursor-pointer group">
                           <div className="flex items-center justify-between mb-2">
-                            <h3 className="font-medium text-gray-900 dark:text-gray-100">{task.title}</h3>
-                            <button onClick={() => handleDelete(task._id)}
-                                    className="text-red-500 hover:text-red-700">
-                              <AiOutlineDelete />
-                            </button>
+                            <h3 className="font-medium text-gray-900 dark:text-gray-100 flex-1 mr-2">{task.title}</h3>
+                            <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleViewDetails(task);
+                                }}
+                                className="p-1 text-blue-500 hover:text-blue-700 rounded"
+                                title="Xem chi tiết"
+                              >
+                                <AiOutlineEye className="w-4 h-4" />
+                              </button>
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDelete(task._id);
+                                }}
+                                className="p-1 text-red-500 hover:text-red-700 rounded"
+                                title="Xóa"
+                              >
+                                <AiOutlineDelete className="w-4 h-4" />
+                              </button>
+                            </div>
                           </div>
                           {task.description && (
-                            <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">{task.description}</p>
+                            <p className="text-sm text-gray-600 dark:text-gray-400 mb-2 line-clamp-2">{task.description}</p>
                           )}
+                          
+                          {/* Tags */}
+                          {task.tags && task.tags.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mb-2">
+                              {task.tags.slice(0, 2).map((tag, index) => (
+                                <span key={index} className="px-2 py-0.5 text-xs bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 rounded-full">
+                                  {tag}
+                                </span>
+                              ))}
+                              {task.tags.length > 2 && (
+                                <span className="px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-full">
+                                  +{task.tags.length - 2}
+                                </span>
+                              )}
+                            </div>
+                          )}
+
                           <div className="flex items-center justify-between text-sm mb-2">
-                            <span>Progress: {completed}/{estimated}</span>
-                            <span>{Math.round(percentage)}%</span>
+                            <span className="text-gray-600 dark:text-gray-400">Progress: {completed}/{estimated}</span>
+                            <span className="font-medium text-gray-900 dark:text-gray-100">{Math.round(percentage)}%</span>
                           </div>
                           <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1 mb-3">
-                            <div className="bg-green-500 h-1 rounded-full"
+                            <div className="bg-green-500 h-1 rounded-full transition-all duration-300"
                                  style={{ width: `${Math.min(percentage, 100)}%` }} />
                           </div>
+
+                          {/* Priority & Status */}
+                          <div className="flex items-center justify-between mb-3">
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getPriorityColor(task.priority)}`}>
+                              {getPriorityLabel(task.priority)}
+                            </span>
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(task.status)}`}>
+                              {task.status === 'todo' ? 'Cần làm' : task.status === 'in-progress' ? 'Đang làm' : 'Hoàn thành'}
+                            </span>
+                          </div>
+
                           {status === 'in-progress' ? (
                             <button
-                              onClick={() => window.dispatchEvent(new CustomEvent('start-task', { detail: { taskId: task._id, projectId: task.projectId } }))}
-                              className="w-full bg-blue-600 text-white py-1 rounded hover:bg-blue-700 text-center text-sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                window.dispatchEvent(new CustomEvent('start-task', { detail: { taskId: task._id, projectId: task.projectId } }));
+                              }}
+                              className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 text-center text-sm font-medium transition-colors"
                             >
                               Start
                             </button>
                           ) : (
                             <button
-                              disabled
-                              className="w-full bg-gray-300 text-gray-500 py-1 rounded text-center text-sm cursor-not-allowed"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleViewDetails(task);
+                              }}
+                              className="w-full bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 py-2 rounded hover:bg-gray-300 dark:hover:bg-gray-500 text-center text-sm font-medium transition-colors"
                             >
-                              Start
+                              View Details
                             </button>
                           )}
                         </div>
@@ -192,6 +257,25 @@ const TasksPage: React.FC = () => {
           </Droppable>
         ))}
       </div>
+
+      {/* Task Detail Modal */}
+      {selectedTask && (
+        <TaskDetailModal
+          task={selectedTask}
+          isOpen={showTaskDetail}
+          onClose={() => {
+            setShowTaskDetail(false);
+            setSelectedTask(null);
+          }}
+          onUpdate={handleUpdateTask}
+          onDelete={() => {
+            setTasks(prev => prev.filter(t => t._id !== selectedTask._id));
+            setShowTaskDetail(false);
+            setSelectedTask(null);
+          }}
+          onStart={() => window.dispatchEvent(new CustomEvent('start-task', { detail: { taskId: selectedTask._id, projectId: selectedTask.projectId } }))}
+        />
+      )}
     </div>
     </DragDropContext>
   );

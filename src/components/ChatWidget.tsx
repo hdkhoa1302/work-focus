@@ -1,40 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { postAIChat, AIChatResponse, AIChatRequest, getConversations, createConversation, activateConversation, Conversation, Message, WhiteboardItem } from '../services/api';
 import { useNavigate } from 'react-router-dom';
-import { AiOutlineMessage, AiOutlineClose, AiOutlineExpandAlt, AiOutlineBulb } from 'react-icons/ai';
+import { AiOutlineMessage, AiOutlineClose, AiOutlineExpandAlt, AiOutlineBulb, AiOutlineCopy, AiOutlineCheck } from 'react-icons/ai';
+import MarkdownRenderer from './MarkdownRenderer';
 
 interface ChatWidgetProps {
   fullPage?: boolean;
 }
-
-// Simple markdown renderer component
-const MarkdownRenderer: React.FC<{ content: string }> = ({ content }) => {
-  const renderMarkdown = (text: string) => {
-    return text
-      // Headers
-      .replace(/^### (.*$)/gm, '<h3 class="text-lg font-semibold mt-4 mb-2">$1</h3>')
-      .replace(/^## (.*$)/gm, '<h2 class="text-xl font-bold mt-4 mb-2">$1</h2>')
-      .replace(/^# (.*$)/gm, '<h1 class="text-2xl font-bold mt-4 mb-2">$1</h1>')
-      // Bold
-      .replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold">$1</strong>')
-      // Italic
-      .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>')
-      // Lists
-      .replace(/^• (.*$)/gm, '<li class="ml-4">• $1</li>')
-      .replace(/^- (.*$)/gm, '<li class="ml-4">• $1</li>')
-      .replace(/^\d+\. (.*$)/gm, '<li class="ml-4">$1</li>')
-      // Line breaks
-      .replace(/\n\n/g, '<br><br>')
-      .replace(/\n/g, '<br>');
-  };
-
-  return (
-    <div 
-      className="whitespace-pre-wrap leading-relaxed"
-      dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }}
-    />
-  );
-};
 
 const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
   const navigate = useNavigate();
@@ -46,6 +18,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingConversation, setIsLoadingConversation] = useState(false);
   const [whiteboardItems, setWhiteboardItems] = useState<WhiteboardItem[]>([]);
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
   const toggleOpen = () => {
@@ -137,6 +110,16 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
       setMessages(newConv.messages);
     } catch (error) {
       console.error('Failed to create conversation:', error);
+    }
+  };
+
+  const copyToClipboard = async (text: string, messageId: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedMessageId(messageId);
+      setTimeout(() => setCopiedMessageId(null), 2000);
+    } catch (error) {
+      console.error('Failed to copy text:', error);
     }
   };
 
@@ -258,7 +241,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
         </div>
       )}
       
-      <div className="flex-1 p-3 overflow-y-auto space-y-3">
+      <div className="flex-1 p-3 overflow-y-auto space-y-4">
         {isLoadingConversation ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
@@ -270,16 +253,36 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
           <>
             {messages.map((m, i) => (
               <div key={i} className={`${m.from === 'user' ? 'text-right' : 'text-left'}`}>
-                <div className={`inline-block max-w-[85%] px-3 py-2 rounded-2xl text-sm ${
+                <div className={`inline-block max-w-[90%] px-3 py-2 rounded-2xl text-sm relative group ${
                   m.from === 'user' 
-                    ? 'bg-blue-500 text-white' 
+                    ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white' 
                     : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200'
                 }`}>
-                  {m.from === 'bot' ? (
-                    <MarkdownRenderer content={m.text} />
-                  ) : (
-                    <div className="whitespace-pre-wrap">{m.text}</div>
-                  )}
+                  
+                  {/* Copy button */}
+                  <button
+                    onClick={() => copyToClipboard(m.text, `${i}`)}
+                    className={`absolute top-1 right-1 p-1 rounded opacity-0 group-hover:opacity-100 transition-all duration-200 ${
+                      m.from === 'user' 
+                        ? 'bg-white/20 hover:bg-white/30 text-white' 
+                        : 'bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-600 dark:text-gray-400'
+                    }`}
+                    title="Copy message"
+                  >
+                    {copiedMessageId === `${i}` ? (
+                      <AiOutlineCheck className="w-3 h-3" />
+                    ) : (
+                      <AiOutlineCopy className="w-3 h-3" />
+                    )}
+                  </button>
+
+                  <div className="pr-6">
+                    {m.from === 'bot' ? (
+                      <MarkdownRenderer content={m.text} />
+                    ) : (
+                      <div className="whitespace-pre-wrap">{m.text}</div>
+                    )}
+                  </div>
                   
                   {m.type === 'project' && m.data && (
                     <div className="mt-3 pt-3 border-t border-gray-300 dark:border-gray-600">

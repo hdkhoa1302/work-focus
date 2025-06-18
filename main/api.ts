@@ -64,6 +64,7 @@ Tôi có thể giúp bạn:
 • Ghi nhớ các quyết định quan trọng
 • Lưu trữ ý tưởng và kế hoạch dài hạn
 • Theo dõi các mục tiêu đã đặt ra
+• Tự động cập nhật trạng thái và đề xuất hành động
 
 📊 **Phân tích & động viên dựa trên khoa học**
 • Đánh giá hiệu suất làm việc theo phương pháp SMART
@@ -138,7 +139,51 @@ Hãy bắt đầu bằng cách mô tả chi tiết dự án hoặc công việc 
     }
   });
 
-  // Enhanced AI chat endpoint with whiteboard integration
+  // Helper function to create structured whiteboard context
+  const createStructuredWhiteboardContext = (whiteboardItems: any[]) => {
+    if (!whiteboardItems || whiteboardItems.length === 0) {
+      return 'Whiteboard hiện tại trống.';
+    }
+
+    const itemsByType = whiteboardItems.reduce((acc, item) => {
+      if (!acc[item.type]) acc[item.type] = [];
+      acc[item.type].push(item);
+      return acc;
+    }, {});
+
+    let context = '\n\n📋 **WHITEBOARD HIỆN TẠI:**\n';
+    
+    Object.entries(itemsByType).forEach(([type, items]: [string, any[]]) => {
+      const typeLabel = {
+        'project': '🎯 DỰ ÁN',
+        'task': '✅ CÔNG VIỆC', 
+        'note': '📝 GHI CHÚ',
+        'decision': '🤔 QUYẾT ĐỊNH'
+      }[type] || type.toUpperCase();
+      
+      context += `\n${typeLabel}:\n`;
+      items.forEach((item, index) => {
+        const statusEmoji = {
+          'pending': '⏳',
+          'confirmed': '✅', 
+          'completed': '🎉'
+        }[item.status] || '❓';
+        
+        const priorityText = item.priority ? ` (Ưu tiên: ${item.priority === 3 ? 'Cao' : item.priority === 2 ? 'TB' : 'Thấp'})` : '';
+        
+        context += `${index + 1}. ${statusEmoji} "${item.title}"${priorityText}\n`;
+        context += `   📄 ${item.description}\n`;
+        if (item.tags && item.tags.length > 0) {
+          context += `   🏷️ Tags: ${item.tags.join(', ')}\n`;
+        }
+        context += `   📅 Tạo: ${new Date(item.createdAt).toLocaleDateString()}\n`;
+      });
+    });
+
+    return context;
+  };
+
+  // Enhanced AI chat endpoint with improved whiteboard integration
   app.post('/api/ai/chat', authenticateToken, async (req, res) => {
     try {
       const userId = (req as any).userId;
@@ -182,12 +227,8 @@ Hãy bắt đầu bằng cách mô tả chi tiết dự án hoặc công việc 
         SessionModel.find({ userId })
       ]);
 
-      // Prepare whiteboard context for AI
-      const whiteboardSummary = whiteboardContext && whiteboardContext.length > 0 
-        ? `\n\nWhiteboard hiện tại:\n${whiteboardContext.map((item: any) => 
-            `- ${item.type}: "${item.title}" (${item.status}) - ${item.description}`
-          ).join('\n')}`
-        : '';
+      // Create structured whiteboard context
+      const structuredWhiteboardContext = createStructuredWhiteboardContext(whiteboardContext || []);
 
       let botResponse = '';
       let responseType = 'text';
@@ -208,12 +249,17 @@ Mô tả từ người dùng: "${message}"
 Lịch sử cuộc trò chuyện để hiểu ngữ cảnh:
 ${conversationHistory}
 
-${whiteboardSummary}
+${structuredWhiteboardContext}
 
 Dữ liệu hiện tại của người dùng:
 - Số dự án đang có: ${projects.length}
 - Số task đã hoàn thành: ${tasks.filter(t => t.status === 'done').length}/${tasks.length}
 - Kinh nghiệm Pomodoro: ${sessions.filter(s => s.type === 'focus').length} phiên
+
+QUAN TRỌNG: Dựa trên whiteboard hiện tại, hãy kiểm tra xem có mục nào liên quan đến dự án này không. Nếu có:
+- Đề xuất cập nhật trạng thái các mục liên quan
+- Tham chiếu đến các ghi chú/quyết định đã có
+- Tạo liên kết logic giữa dự án mới và whiteboard
 
 Hãy phân tích sâu và tạo dự án với:
 1. Tên dự án cụ thể, hấp dẫn
@@ -227,6 +273,7 @@ Hãy phân tích sâu và tạo dự án với:
 4. Timeline tổng thể
 5. Các điểm quan trọng cần lưu ý
 6. Gợi ý kỹ năng hoặc tài nguyên cần thiết
+7. Liên kết với whiteboard (nếu có)
 
 Nếu mô tả chưa đủ chi tiết, hãy đặt 2-3 câu hỏi làm rõ.
 
@@ -246,7 +293,8 @@ Trả về JSON với format chính xác:
   "timeline": "Thời gian dự kiến hoàn thành",
   "keyPoints": ["Điểm quan trọng 1", "Điểm quan trọng 2"],
   "requiredSkills": ["Kỹ năng 1", "Kỹ năng 2"],
-  "clarificationQuestions": ["Câu hỏi 1?", "Câu hỏi 2?"]
+  "clarificationQuestions": ["Câu hỏi 1?", "Câu hỏi 2?"],
+  "whiteboardConnections": ["Liên kết với mục whiteboard nếu có"]
 }
 
 Chỉ trả về JSON, không thêm text khác.
@@ -275,6 +323,11 @@ Chỉ trả về JSON, không thêm text khác.
               skillsText = `\n\n🎯 **Kỹ năng cần thiết:**\n${analysis.requiredSkills.map((skill: string) => `• ${skill}`).join('\n')}`;
             }
 
+            let whiteboardText = '';
+            if (analysis.whiteboardConnections && analysis.whiteboardConnections.length > 0) {
+              whiteboardText = `\n\n🔗 **Liên kết với Whiteboard:**\n${analysis.whiteboardConnections.map((conn: string) => `• ${conn}`).join('\n')}`;
+            }
+
             botResponse = `🎯 **Phân tích dự án hoàn tất!**
 
 **📋 Dự án:** ${analysis.projectName}
@@ -289,7 +342,7 @@ ${analysis.tasks
   ).join('\n\n')}
 
 **💡 Điểm quan trọng:**
-${analysis.keyPoints.map((point: string) => `• ${point}`).join('\n')}${skillsText}${clarificationText}
+${analysis.keyPoints.map((point: string) => `• ${point}`).join('\n')}${skillsText}${whiteboardText}${clarificationText}
 
 ✅ **Bạn có muốn tôi tạo dự án này không?** Hãy trả lời "Có, tạo dự án" để xác nhận hoặc yêu cầu chỉnh sửa nếu cần.`;
           }
@@ -298,7 +351,7 @@ ${analysis.keyPoints.map((point: string) => `• ${point}`).join('\n')}${skillsT
           botResponse = '❌ Có lỗi xảy ra khi phân tích. Vui lòng mô tả rõ hơn về dự án bạn muốn thực hiện, bao gồm mục tiêu, phạm vi và thời gian dự kiến.';
         }
       }
-      // Detect note creation intent
+      // Enhanced note creation intent detection
       else if (message.toLowerCase().includes('ghi nhớ') || 
                message.toLowerCase().includes('lưu ý') ||
                message.toLowerCase().includes('note') ||
@@ -313,13 +366,19 @@ Tin nhắn: "${message}"
 Lịch sử cuộc trò chuyện:
 ${conversationHistory}
 
-${whiteboardSummary}
+${structuredWhiteboardContext}
+
+QUAN TRỌNG: Kiểm tra whiteboard hiện tại để:
+- Tìm các mục liên quan đến ghi chú này
+- Đề xuất cập nhật hoặc liên kết với các mục đã có
+- Tránh tạo trùng lặp
 
 Hãy tạo một ghi chú có cấu trúc với:
 1. Tiêu đề ngắn gọn, súc tích
 2. Mô tả chi tiết nội dung cần ghi nhớ
 3. Mức độ ưu tiên (1-3)
 4. Các tag liên quan
+5. Liên kết với whiteboard (nếu có)
 
 Trả về JSON:
 {
@@ -328,7 +387,8 @@ Trả về JSON:
   "description": "Mô tả chi tiết",
   "priority": 1-3,
   "tags": ["tag1", "tag2"],
-  "status": "pending"
+  "status": "pending",
+  "relatedItems": ["ID hoặc tên mục liên quan trên whiteboard"]
 }
 
 Chỉ trả về JSON, không thêm text khác.
@@ -345,11 +405,17 @@ Chỉ trả về JSON, không thêm text khác.
             const noteData = JSON.parse(jsonMatch[0]);
             responseData = noteData;
             responseType = 'note';
+            
+            let relatedText = '';
+            if (noteData.relatedItems && noteData.relatedItems.length > 0) {
+              relatedText = `\n\n🔗 **Liên quan đến:** ${noteData.relatedItems.join(', ')}`;
+            }
+            
             botResponse = `📝 **Đã tạo ghi chú mới!**
 
 **${noteData.title}**
 
-${noteData.description}
+${noteData.description}${relatedText}
 
 Ghi chú đã được thêm vào whiteboard của bạn. Bạn có thể xem và quản lý trong tab Whiteboard.`;
           }
@@ -358,7 +424,7 @@ Ghi chú đã được thêm vào whiteboard của bạn. Bạn có thể xem v�
           botResponse = '❌ Có lỗi xảy ra khi tạo ghi chú. Vui lòng thử lại!';
         }
       }
-      // Detect decision creation intent
+      // Enhanced decision creation intent detection
       else if (message.toLowerCase().includes('quyết định') ||
                message.toLowerCase().includes('decision') ||
                message.toLowerCase().includes('chọn') ||
@@ -373,13 +439,19 @@ Tin nhắn: "${message}"
 Lịch sử cuộc trò chuyện:
 ${conversationHistory}
 
-${whiteboardSummary}
+${structuredWhiteboardContext}
+
+QUAN TRỌNG: Dựa trên whiteboard hiện tại:
+- Tìm các quyết định liên quan đã có
+- Đề xuất cập nhật trạng thái quyết định cũ nếu phù hợp
+- Tạo liên kết logic với các mục khác
 
 Hãy tạo một mục quyết định với:
 1. Tiêu đề mô tả quyết định cần đưa ra
 2. Mô tả chi tiết các lựa chọn và yếu tố cần xem xét
 3. Mức độ ưu tiên
 4. Các tag liên quan
+5. Deadline (nếu có)
 
 Trả về JSON:
 {
@@ -388,7 +460,9 @@ Trả về JSON:
   "description": "Mô tả chi tiết các lựa chọn và yếu tố",
   "priority": 1-3,
   "tags": ["tag1", "tag2"],
-  "status": "pending"
+  "status": "pending",
+  "deadline": "YYYY-MM-DD hoặc null",
+  "relatedItems": ["ID hoặc tên mục liên quan"]
 }
 
 Chỉ trả về JSON, không thêm text khác.
@@ -405,17 +479,101 @@ Chỉ trả về JSON, không thêm text khác.
             const decisionData = JSON.parse(jsonMatch[0]);
             responseData = decisionData;
             responseType = 'decision';
+            
+            let deadlineText = '';
+            if (decisionData.deadline) {
+              deadlineText = `\n⏰ **Deadline:** ${new Date(decisionData.deadline).toLocaleDateString()}`;
+            }
+            
+            let relatedText = '';
+            if (decisionData.relatedItems && decisionData.relatedItems.length > 0) {
+              relatedText = `\n🔗 **Liên quan đến:** ${decisionData.relatedItems.join(', ')}`;
+            }
+            
             botResponse = `🤔 **Đã tạo mục quyết định mới!**
 
 **${decisionData.title}**
 
-${decisionData.description}
+${decisionData.description}${deadlineText}${relatedText}
 
 Quyết định đã được thêm vào whiteboard để bạn theo dõi. Hãy cập nhật trạng thái khi đã có quyết định cuối cùng.`;
           }
         } catch (error) {
           console.error('Decision creation failed:', error);
           botResponse = '❌ Có lỗi xảy ra khi tạo mục quyết định. Vui lòng thử lại!';
+        }
+      }
+      // Enhanced whiteboard update detection
+      else if (message.toLowerCase().includes('cập nhật') ||
+               message.toLowerCase().includes('hoàn thành') ||
+               message.toLowerCase().includes('xong') ||
+               message.toLowerCase().includes('done') ||
+               message.toLowerCase().includes('finished')) {
+        
+        const updatePrompt = `
+Phân tích tin nhắn sau để xác định cập nhật cần thực hiện trên whiteboard:
+
+Tin nhắn: "${message}"
+
+${structuredWhiteboardContext}
+
+Hãy xác định:
+1. Mục nào trên whiteboard cần được cập nhật
+2. Loại cập nhật (trạng thái, mô tả, ưu tiên, etc.)
+3. Giá trị mới
+
+Nếu tìm thấy mục cần cập nhật, trả về JSON:
+{
+  "type": "whiteboard_update",
+  "itemTitle": "Tiêu đề mục cần cập nhật",
+  "updates": {
+    "status": "pending/confirmed/completed",
+    "description": "mô tả mới nếu có",
+    "priority": 1-3
+  },
+  "reason": "Lý do cập nhật"
+}
+
+Nếu không tìm thấy mục nào phù hợp, trả về:
+{
+  "type": "no_update",
+  "message": "Không tìm thấy mục nào trên whiteboard phù hợp với yêu cầu cập nhật"
+}
+
+Chỉ trả về JSON, không thêm text khác.
+`;
+
+        try {
+          const aiResponse = await chat({
+            model: 'gemini-2.0-flash',
+            contents: updatePrompt
+          });
+
+          const jsonMatch = aiResponse.text.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const updateData = JSON.parse(jsonMatch[0]);
+            
+            if (updateData.type === 'whiteboard_update') {
+              responseData = updateData;
+              responseType = 'whiteboard_update';
+              botResponse = `🔄 **Đề xuất cập nhật Whiteboard**
+
+**Mục:** ${updateData.itemTitle}
+**Lý do:** ${updateData.reason}
+
+Các thay đổi được đề xuất:
+${Object.entries(updateData.updates).map(([key, value]) => 
+  `• ${key === 'status' ? 'Trạng thái' : key === 'description' ? 'Mô tả' : 'Ưu tiên'}: ${value}`
+).join('\n')}
+
+Bạn có muốn áp dụng cập nhật này không?`;
+            } else {
+              botResponse = updateData.message || 'Không tìm thấy mục nào trên whiteboard phù hợp với yêu cầu cập nhật của bạn.';
+            }
+          }
+        } catch (error) {
+          console.error('Update detection failed:', error);
+          botResponse = 'Tôi không thể xác định mục nào trên whiteboard cần cập nhật. Bạn có thể chỉ rõ hơn không?';
         }
       }
       // Enhanced project creation confirmation with better pattern matching
@@ -486,6 +644,35 @@ Chuyển đến trang dự án để xem chi tiết và bắt đầu làm việc
           botResponse = '❌ Không tìm thấy thông tin dự án để tạo. Vui lòng mô tả lại dự án bạn muốn thực hiện.';
         }
       }
+      // Enhanced whiteboard update confirmation
+      else if (message.toLowerCase().includes('áp dụng') ||
+               message.toLowerCase().includes('cập nhật') && (message.toLowerCase().includes('có') || message.toLowerCase().includes('ok'))) {
+        
+        // Find the last whiteboard update suggestion
+        let lastUpdateMessage = null;
+        for (let i = conversation.messages.length - 1; i >= 0; i--) {
+          if (conversation.messages[i].type === 'whiteboard_update' && conversation.messages[i].data) {
+            lastUpdateMessage = conversation.messages[i];
+            break;
+          }
+        }
+        
+        if (lastUpdateMessage?.data) {
+          responseData = {
+            type: 'apply_whiteboard_update',
+            itemTitle: lastUpdateMessage.data.itemTitle,
+            updates: lastUpdateMessage.data.updates
+          };
+          responseType = 'apply_whiteboard_update';
+          botResponse = `✅ **Cập nhật đã được áp dụng!**
+
+Mục "${lastUpdateMessage.data.itemTitle}" đã được cập nhật thành công trên whiteboard.
+
+Bạn có thể xem thay đổi trong tab Whiteboard.`;
+        } else {
+          botResponse = 'Không tìm thấy đề xuất cập nhật nào để áp dụng.';
+        }
+      }
       // General AI chat with enhanced context including whiteboard
       else {
         const contextPrompt = `
@@ -494,7 +681,7 @@ Bạn là AI Agent trợ lý quản lý công việc thông minh, áp dụng cá
 Lịch sử cuộc trò chuyện:
 ${conversationHistory}
 
-${whiteboardSummary}
+${structuredWhiteboardContext}
 
 Dữ liệu người dùng hiện tại:
 - Số dự án: ${projects.length} (${projects.filter(p => !p.completed).length} đang thực hiện)
@@ -503,6 +690,12 @@ Dữ liệu người dùng hiện tại:
 - Tỷ lệ hoàn thành: ${tasks.length > 0 ? Math.round((tasks.filter(t => t.status === 'done').length / tasks.length) * 100) : 0}%
 
 Tin nhắn mới: ${message}
+
+QUAN TRỌNG: Dựa trên whiteboard hiện tại, hãy:
+1. Tham chiếu đến các mục liên quan nếu có
+2. Đề xuất cập nhật trạng thái nếu phù hợp
+3. Tạo liên kết logic giữa câu hỏi và whiteboard
+4. Gợi ý hành động cụ thể dựa trên ngữ cảnh
 
 Hãy trả lời dựa trên các nguyên tắc khoa học:
 1. **Mục tiêu SMART**: Gợi ý cách đặt mục tiêu cụ thể, đo lường được

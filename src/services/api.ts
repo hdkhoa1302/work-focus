@@ -61,13 +61,15 @@ export interface WhiteboardItem {
   relatedTo?: string;
   priority?: number;
   tags?: string[];
+  deadline?: string;
+  relatedItems?: string[];
 }
 
 export interface Message {
   from: 'user' | 'bot';
   text: string;
   timestamp: Date;
-  type?: 'text' | 'project' | 'task' | 'analysis' | 'encouragement' | 'note' | 'decision' | 'whiteboard';
+  type?: 'text' | 'project' | 'task' | 'analysis' | 'encouragement' | 'note' | 'decision' | 'whiteboard' | 'whiteboard_update' | 'whiteboard_update_confirmation' | 'apply_whiteboard_update';
   data?: any;
 }
 
@@ -178,7 +180,7 @@ export const deleteProject = async (id: string): Promise<void> => {
   await api.delete(`/api/projects/${id}`);
 };
 
-// Interfaces và API cho AI chat với whiteboard context
+// Enhanced interfaces và API cho AI chat với whiteboard context
 export interface AIChatRequest {
   message: string;
   conversationId?: string;
@@ -261,4 +263,24 @@ export interface ProactiveFeedbackResponse {
 export const getProactiveFeedback = async (): Promise<ProactiveFeedbackResponse> => {
   const resp = await api.post<ProactiveFeedbackResponse>('/api/ai/proactive-feedback');
   return resp.data;
+};
+
+// Whiteboard management APIs
+export interface WhiteboardUpdateRequest {
+  itemTitle: string;
+  updates: Partial<WhiteboardItem>;
+  reason?: string;
+}
+
+export const updateWhiteboardItem = async (itemTitle: string, updates: Partial<WhiteboardItem>): Promise<void> => {
+  // This is handled locally in the frontend for now
+  // Could be extended to sync with backend if needed
+  const savedWhiteboard = localStorage.getItem('ai-whiteboard');
+  if (savedWhiteboard) {
+    const items: WhiteboardItem[] = JSON.parse(savedWhiteboard);
+    const updatedItems = items.map(item => 
+      item.title === itemTitle ? { ...item, ...updates } : item
+    );
+    localStorage.setItem('ai-whiteboard', JSON.stringify(updatedItems));
+  }
 };

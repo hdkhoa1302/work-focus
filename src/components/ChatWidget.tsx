@@ -81,6 +81,13 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
     saveWhiteboard(updatedItems);
   };
 
+  const updateWhiteboardItem = (itemTitle: string, updates: Partial<WhiteboardItem>) => {
+    const updatedItems = whiteboardItems.map(item => 
+      item.title === itemTitle ? { ...item, ...updates } : item
+    );
+    saveWhiteboard(updatedItems);
+  };
+
   const switchConversation = async (conversationId: string) => {
     if (conversationId === activeConversationId) return;
     
@@ -154,7 +161,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
         loadConversations(); // Refresh conversations list
       }
 
-      // Add to whiteboard if AI created note or decision
+      // Handle different response types
       if ((response.type === 'note' || response.type === 'decision') && response.data) {
         addToWhiteboard(response.data);
       }
@@ -167,6 +174,35 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
           description: response.data.description,
           status: 'pending'
         });
+      }
+
+      // Handle whiteboard updates
+      if (response.type === 'whiteboard_update' && response.data) {
+        // Show confirmation message but don't apply yet
+        const confirmMsg: Message = {
+          from: 'bot',
+          text: `🔄 **Đề xuất cập nhật Whiteboard**\n\n**Mục:** ${response.data.itemTitle}\n**Lý do:** ${response.data.reason}\n\nCác thay đổi được đề xuất:\n${Object.entries(response.data.updates).map(([key, value]) => 
+            `• ${key === 'status' ? 'Trạng thái' : key === 'description' ? 'Mô tả' : 'Ưu tiên'}: ${value}`
+          ).join('\n')}\n\nBạn có muốn áp dụng cập nhật này không?`,
+          timestamp: new Date(),
+          type: 'whiteboard_update_confirmation',
+          data: response.data
+        };
+        setMessages(prev => [...prev.slice(0, -1), confirmMsg]);
+      }
+
+      // Handle applying whiteboard updates
+      if (response.type === 'apply_whiteboard_update' && response.data) {
+        updateWhiteboardItem(response.data.itemTitle, response.data.updates);
+        
+        // Show success message
+        const successMsg: Message = {
+          from: 'bot',
+          text: `✅ **Cập nhật đã được áp dụng!**\n\nMục "${response.data.itemTitle}" đã được cập nhật thành công trên whiteboard.\n\nBạn có thể xem thay đổi trong tab Whiteboard.`,
+          timestamp: new Date(),
+          type: 'text'
+        };
+        setMessages(prev => [...prev.slice(0, -1), successMsg]);
       }
 
       // Trigger tasks refresh if project was created
@@ -284,13 +320,31 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
                     )}
                   </div>
                   
+                  {/* Interactive buttons for AI suggestions */}
                   {m.type === 'project' && m.data && (
                     <div className="mt-3 pt-3 border-t border-gray-300 dark:border-gray-600">
                       <button
-                        onClick={() => sendMessage('ok')}
+                        onClick={() => sendMessage('Có, tạo dự án')}
                         className="w-full px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-xs font-medium"
                       >
                         ✅ Tạo dự án này
+                      </button>
+                    </div>
+                  )}
+
+                  {m.type === 'whiteboard_update_confirmation' && m.data && (
+                    <div className="mt-3 pt-3 border-t border-gray-300 dark:border-gray-600 space-y-2">
+                      <button
+                        onClick={() => sendMessage('Có, áp dụng cập nhật')}
+                        className="w-full px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-xs font-medium"
+                      >
+                        ✅ Áp dụng cập nhật
+                      </button>
+                      <button
+                        onClick={() => sendMessage('Không, bỏ qua')}
+                        className="w-full px-3 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-xs font-medium"
+                      >
+                        ❌ Bỏ qua
                       </button>
                     </div>
                   )}
@@ -328,7 +382,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-            placeholder="Mô tả công việc, ghi chú, quyết định..."
+            placeholder="Mô tả công việc, ghi chú, quyết định hoặc cập nhật..."
             disabled={isLoading || isLoadingConversation}
           />
           <button

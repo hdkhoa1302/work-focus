@@ -1,6 +1,6 @@
 {
   "name": "work-focus",
-  "productName": "work-focus",
+  "productName": "Work Focus",
   "version": "1.0.0",
   "description": "My Electron application description",
   "main": "dist/main/main.js",
@@ -12,11 +12,43 @@
     "start": "NODE_ENV=production npm run build && electron .",
     "dev:main": "tsc -w -p tsconfig.json",
     "dev:renderer": "esbuild src/index.tsx --bundle --outfile=dist/main/renderer/index.js --platform=browser --target=es2020 --format=esm --watch",
-    "start:dev": "npm run build:renderer && npm run copy-public && concurrently --kill-others-on-fail \"npm run dev:main\" \"npm run dev:renderer\" \"wait-on dist/main/renderer/index.html && electron .\""
+    "start:dev": "npm run build:renderer && npm run copy-public && concurrently --kill-others-on-fail \"npm run dev:main\" \"npm run dev:renderer\" \"wait-on dist/main/renderer/index.html && electron .\"",
+    "pack": "npm run build && electron-builder --dir",
+    "dist": "npm run build && electron-builder",
+    "dist:mac": "npm run build && electron-builder --mac"
   },
   "keywords": [],
   "author": "khoahd",
   "license": "MIT",
+  "build": {
+    "appId": "com.workfocus.app",
+    "productName": "Work Focus",
+    "electronCompile": false,
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": ["dmg", "zip"],
+      "icon": "build/icon.icns"
+    },
+    "dmg": {
+      "backgroundColor": "#f0f0f0",
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    },
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ]
+  },
   "config": {
     "forge": {
       "make_targets": {
@@ -75,8 +107,6 @@
     "body-parser": "^2.2.0",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
-    "electron": "^36.4.0",
-    "electron-compile": "^6.4.4",
     "electron-squirrel-startup": "^1.0.1",
     "express": "^5.1.0",
     "i18next": "^25.2.1",
@@ -107,6 +137,9 @@
     "babel-preset-env": "^1.7.0",
     "babel-preset-react": "^6.24.1",
     "concurrently": "^9.1.2",
+    "electron": "^36.4.0",
+    "electron-builder": "^26.0.12",
+    "electron-compile": "^6.4.4",
     "electron-forge": "^5.2.4",
     "electron-reload": "^2.0.0-alpha.1",
     "esbuild": "^0.19.12",

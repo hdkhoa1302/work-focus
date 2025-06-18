@@ -4,7 +4,7 @@ interface Message {
   from: 'user' | 'bot';
   text: string;
   timestamp: Date;
-  type?: 'text' | 'project' | 'task' | 'analysis' | 'encouragement';
+  type?: 'text' | 'project' | 'task' | 'analysis' | 'encouragement' | 'note' | 'decision' | 'whiteboard';
   data?: any;
 }
 
@@ -21,7 +21,7 @@ const MessageSchema = new Schema({
   from: { type: String, enum: ['user', 'bot'], required: true },
   text: { type: String, required: true },
   timestamp: { type: Date, default: Date.now },
-  type: { type: String, enum: ['text', 'project', 'task', 'analysis', 'encouragement'], default: 'text' },
+  type: { type: String, enum: ['text', 'project', 'task', 'analysis', 'encouragement', 'note', 'decision', 'whiteboard'], default: 'text' },
   data: { type: Schema.Types.Mixed }
 });
 

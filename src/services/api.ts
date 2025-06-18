@@ -51,11 +51,23 @@ export interface Session {
   duration?: number;
 }
 
+export interface WhiteboardItem {
+  id: string;
+  type: 'project' | 'task' | 'note' | 'decision';
+  title: string;
+  description: string;
+  status: 'pending' | 'confirmed' | 'completed';
+  createdAt: Date;
+  relatedTo?: string;
+  priority?: number;
+  tags?: string[];
+}
+
 export interface Message {
   from: 'user' | 'bot';
   text: string;
   timestamp: Date;
-  type?: 'text' | 'project' | 'task' | 'analysis' | 'encouragement';
+  type?: 'text' | 'project' | 'task' | 'analysis' | 'encouragement' | 'note' | 'decision' | 'whiteboard';
   data?: any;
 }
 
@@ -166,10 +178,11 @@ export const deleteProject = async (id: string): Promise<void> => {
   await api.delete(`/api/projects/${id}`);
 };
 
-// Interfaces và API cho AI chat
+// Interfaces và API cho AI chat với whiteboard context
 export interface AIChatRequest {
   message: string;
   conversationId?: string;
+  whiteboardContext?: WhiteboardItem[];
 }
 
 export interface AIChatResponse {

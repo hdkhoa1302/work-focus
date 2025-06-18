@@ -138,11 +138,11 @@ Hãy bắt đầu bằng cách mô tả chi tiết dự án hoặc công việc 
     }
   });
 
-  // Enhanced AI chat endpoint with improved project creation
+  // Enhanced AI chat endpoint with whiteboard integration
   app.post('/api/ai/chat', authenticateToken, async (req, res) => {
     try {
       const userId = (req as any).userId;
-      const { message, conversationId } = req.body;
+      const { message, conversationId, whiteboardContext } = req.body;
 
       // Get or create active conversation
       let conversation;
@@ -182,6 +182,13 @@ Hãy bắt đầu bằng cách mô tả chi tiết dự án hoặc công việc 
         SessionModel.find({ userId })
       ]);
 
+      // Prepare whiteboard context for AI
+      const whiteboardSummary = whiteboardContext && whiteboardContext.length > 0 
+        ? `\n\nWhiteboard hiện tại:\n${whiteboardContext.map((item: any) => 
+            `- ${item.type}: "${item.title}" (${item.status}) - ${item.description}`
+          ).join('\n')}`
+        : '';
+
       let botResponse = '';
       let responseType = 'text';
       let responseData = null;
@@ -200,6 +207,8 @@ Mô tả từ người dùng: "${message}"
 
 Lịch sử cuộc trò chuyện để hiểu ngữ cảnh:
 ${conversationHistory}
+
+${whiteboardSummary}
 
 Dữ liệu hiện tại của người dùng:
 - Số dự án đang có: ${projects.length}
@@ -289,6 +298,126 @@ ${analysis.keyPoints.map((point: string) => `• ${point}`).join('\n')}${skillsT
           botResponse = '❌ Có lỗi xảy ra khi phân tích. Vui lòng mô tả rõ hơn về dự án bạn muốn thực hiện, bao gồm mục tiêu, phạm vi và thời gian dự kiến.';
         }
       }
+      // Detect note creation intent
+      else if (message.toLowerCase().includes('ghi nhớ') || 
+               message.toLowerCase().includes('lưu ý') ||
+               message.toLowerCase().includes('note') ||
+               message.toLowerCase().includes('ghi chú') ||
+               (message.toLowerCase().includes('quan trọng') && message.length > 20)) {
+        
+        const notePrompt = `
+Phân tích tin nhắn sau và tạo ghi chú thông minh:
+
+Tin nhắn: "${message}"
+
+Lịch sử cuộc trò chuyện:
+${conversationHistory}
+
+${whiteboardSummary}
+
+Hãy tạo một ghi chú có cấu trúc với:
+1. Tiêu đề ngắn gọn, súc tích
+2. Mô tả chi tiết nội dung cần ghi nhớ
+3. Mức độ ưu tiên (1-3)
+4. Các tag liên quan
+
+Trả về JSON:
+{
+  "type": "note",
+  "title": "Tiêu đề ghi chú",
+  "description": "Mô tả chi tiết",
+  "priority": 1-3,
+  "tags": ["tag1", "tag2"],
+  "status": "pending"
+}
+
+Chỉ trả về JSON, không thêm text khác.
+`;
+
+        try {
+          const aiResponse = await chat({
+            model: 'gemini-2.0-flash',
+            contents: notePrompt
+          });
+
+          const jsonMatch = aiResponse.text.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const noteData = JSON.parse(jsonMatch[0]);
+            responseData = noteData;
+            responseType = 'note';
+            botResponse = `📝 **Đã tạo ghi chú mới!**
+
+**${noteData.title}**
+
+${noteData.description}
+
+Ghi chú đã được thêm vào whiteboard của bạn. Bạn có thể xem và quản lý trong tab Whiteboard.`;
+          }
+        } catch (error) {
+          console.error('Note creation failed:', error);
+          botResponse = '❌ Có lỗi xảy ra khi tạo ghi chú. Vui lòng thử lại!';
+        }
+      }
+      // Detect decision creation intent
+      else if (message.toLowerCase().includes('quyết định') ||
+               message.toLowerCase().includes('decision') ||
+               message.toLowerCase().includes('chọn') ||
+               message.toLowerCase().includes('lựa chọn') ||
+               (message.includes('?') && message.length > 30)) {
+        
+        const decisionPrompt = `
+Phân tích tin nhắn sau và tạo quyết định cần theo dõi:
+
+Tin nhắn: "${message}"
+
+Lịch sử cuộc trò chuyện:
+${conversationHistory}
+
+${whiteboardSummary}
+
+Hãy tạo một mục quyết định với:
+1. Tiêu đề mô tả quyết định cần đưa ra
+2. Mô tả chi tiết các lựa chọn và yếu tố cần xem xét
+3. Mức độ ưu tiên
+4. Các tag liên quan
+
+Trả về JSON:
+{
+  "type": "decision",
+  "title": "Quyết định cần đưa ra",
+  "description": "Mô tả chi tiết các lựa chọn và yếu tố",
+  "priority": 1-3,
+  "tags": ["tag1", "tag2"],
+  "status": "pending"
+}
+
+Chỉ trả về JSON, không thêm text khác.
+`;
+
+        try {
+          const aiResponse = await chat({
+            model: 'gemini-2.0-flash',
+            contents: decisionPrompt
+          });
+
+          const jsonMatch = aiResponse.text.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const decisionData = JSON.parse(jsonMatch[0]);
+            responseData = decisionData;
+            responseType = 'decision';
+            botResponse = `🤔 **Đã tạo mục quyết định mới!**
+
+**${decisionData.title}**
+
+${decisionData.description}
+
+Quyết định đã được thêm vào whiteboard để bạn theo dõi. Hãy cập nhật trạng thái khi đã có quyết định cuối cùng.`;
+          }
+        } catch (error) {
+          console.error('Decision creation failed:', error);
+          botResponse = '❌ Có lỗi xảy ra khi tạo mục quyết định. Vui lòng thử lại!';
+        }
+      }
       // Enhanced project creation confirmation with better pattern matching
       else if ((message.toLowerCase().includes('có') && (message.toLowerCase().includes('tạo') || message.toLowerCase().includes('dự án'))) ||
                message.toLowerCase().includes('xác nhận') ||
@@ -357,13 +486,15 @@ Chuyển đến trang dự án để xem chi tiết và bắt đầu làm việc
           botResponse = '❌ Không tìm thấy thông tin dự án để tạo. Vui lòng mô tả lại dự án bạn muốn thực hiện.';
         }
       }
-      // General AI chat with enhanced context
+      // General AI chat with enhanced context including whiteboard
       else {
         const contextPrompt = `
 Bạn là AI Agent trợ lý quản lý công việc thông minh, áp dụng các phương pháp khoa học về năng suất.
 
 Lịch sử cuộc trò chuyện:
 ${conversationHistory}
+
+${whiteboardSummary}
 
 Dữ liệu người dùng hiện tại:
 - Số dự án: ${projects.length} (${projects.filter(p => !p.completed).length} đang thực hiện)
@@ -379,6 +510,8 @@ Hãy trả lời dựa trên các nguyên tắc khoa học:
 3. **Pomodoro Technique**: Khuyến khích sử dụng kỹ thuật này
 4. **Gamification**: Tạo động lực qua thành tích và milestone
 5. **Positive Reinforcement**: Khen ngợi thành tích và động viên
+
+Nếu người dùng hỏi về whiteboard hoặc các ghi chú/quyết định đã lưu, hãy tham khảo thông tin từ whiteboard context.
 
 Trả lời một cách thân thiện, hữu ích và dựa trên dữ liệu thực tế của người dùng.
 `;

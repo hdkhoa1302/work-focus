@@ -40,6 +40,7 @@ export interface Task {
   createdAt?: string;
   updatedAt?: string;
   estimatedPomodoros?: number;
+  relatedItems?: string[];
 }
 
 export interface Session {
@@ -61,8 +62,6 @@ export interface WhiteboardItem {
   relatedTo?: string;
   priority?: number;
   tags?: string[];
-  deadline?: string;
-  relatedItems?: string[];
 }
 
 export interface Message {
@@ -215,6 +214,28 @@ export interface ProjectProgressAnalysis {
 
 export const getProjectProgress = async (projectId: string): Promise<ProjectProgressAnalysis> => {
   const resp = await api.get<ProjectProgressAnalysis>(`/api/projects/${projectId}/progress`);
+  return resp.data;
+};
+
+// Daily Tasks API
+export interface DailyTasksResponse {
+  date: string;
+  tasksWithDeadline: Task[];
+  tasksInProgress: Task[];
+  projects: Project[];
+  stats: {
+    tasksWithDeadline: number;
+    tasksInProgress: number;
+    projectsWithDeadline: number;
+    completedToday: number;
+    focusSessions: number;
+    totalFocusTime: number;
+  };
+}
+
+export const getDailyTasks = async (date?: Date): Promise<DailyTasksResponse> => {
+  const params = date ? { date: date.toISOString() } : {};
+  const resp = await api.get<DailyTasksResponse>('/api/daily-tasks', { params });
   return resp.data;
 };
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { getTasks, getSessions, Task, Session, getProactiveFeedback, ProactiveFeedbackResponse } from '../services/api';
+import { getTasks, getSessions, Task, Session, getProactiveFeedback, ProactiveFeedbackResponse, getDailyTasks, DailyTasksResponse } from '../services/api';
 import { 
   AiOutlineCheckCircle, 
   AiOutlineClockCircle, 
@@ -12,6 +12,8 @@ import {
 } from 'react-icons/ai';
 import { FiTarget, FiTrendingUp, FiLoader } from 'react-icons/fi';
 import useLanguage from '../hooks/useLanguage';
+import DailyTaskList from '../components/DailyTaskList';
+import TaskDetailModal from '../components/TaskDetailModal';
 
 // Simple markdown renderer component
 const MarkdownRenderer: React.FC<{ content: string }> = ({ content }) => {
@@ -46,9 +48,13 @@ const Dashboard: React.FC = () => {
   const { t } = useLanguage();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [dailyData, setDailyData] = useState<DailyTasksResponse | null>(null);
   const [proactiveFeedback, setProactiveFeedback] = useState<ProactiveFeedbackResponse | null>(null);
   const [showFeedback, setShowFeedback] = useState(false);
   const [isLoadingFeedback, setIsLoadingFeedback] = useState(false);
+  const [isLoadingDailyTasks, setIsLoadingDailyTasks] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [showTaskDetail, setShowTaskDetail] = useState(false);
   const [stats, setStats] = useState({
     totalTasks: 0,
     completedTasks: 0,
@@ -91,6 +97,9 @@ const Dashboard: React.FC = () => {
         if (tasksData.length > 0 || sessionsData.length > 0) {
           setTimeout(() => fetchProactiveFeedback(), 2000);
         }
+        
+        // Fetch daily tasks
+        fetchDailyTasks();
       } catch (error) {
         console.error('Failed to fetch dashboard data:', error);
       }
@@ -122,6 +131,35 @@ const Dashboard: React.FC = () => {
     } finally {
       setIsLoadingFeedback(false);
     }
+  };
+
+  const fetchDailyTasks = async () => {
+    setIsLoadingDailyTasks(true);
+    try {
+      const data = await getDailyTasks();
+      setDailyData(data);
+    } catch (error) {
+      console.error('Failed to fetch daily tasks:', error);
+    } finally {
+      setIsLoadingDailyTasks(false);
+    }
+  };
+
+  const handleTaskSelect = (task: Task) => {
+    setSelectedTask(task);
+    setShowTaskDetail(true);
+  };
+
+  const handleStartTask = (taskId: string) => {
+    window.dispatchEvent(new CustomEvent('start-task', { 
+      detail: { taskId } 
+    }));
+  };
+
+  const handleTaskUpdate = (updatedTask: Task) => {
+    setTasks(prev => prev.map(t => t._id === updatedTask._id ? updatedTask : t));
+    setSelectedTask(updatedTask);
+    fetchDailyTasks(); // Refresh daily tasks
   };
 
   const recentTasks = tasks
@@ -240,46 +278,14 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Recent Tasks and Quick Actions */}
+      {/* Daily Tasks and Quick Actions */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
-        {/* Recent Tasks */}
-        <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6 space-y-2 sm:space-y-0">
-            <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-100">{t('dashboard.recentTasks')}</h2>
-            <button className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium text-sm sm:text-base">
-              {t('dashboard.viewAll')}
-            </button>
-          </div>
-          
-          {recentTasks.length > 0 ? (
-            <div className="space-y-3 sm:space-y-4">
-              {recentTasks.map(task => (
-                <div key={task._id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 sm:p-4 bg-gray-50 dark:bg-gray-700 rounded-lg space-y-3 sm:space-y-0">
-                  <div className="flex items-center space-x-3 sm:space-x-4 min-w-0">
-                    <div className={`w-3 h-3 rounded-full flex-shrink-0 ${
-                      task.status === 'done' ? 'bg-green-500' :
-                      task.status === 'in-progress' ? 'bg-yellow-500' : 'bg-gray-400'
-                    }`}></div>
-                    <div className="min-w-0 flex-1">
-                      <h3 className="font-medium text-gray-900 dark:text-gray-100 text-sm sm:text-base truncate">{task.title}</h3>
-                      <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 truncate">{task.description?.replace(/<[^>]*>/g, '') || t('dashboard.noDescription')}</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => window.dispatchEvent(new CustomEvent('start-task', { detail: { taskId: task._id, projectId: task.projectId } }))}
-                    className="w-full sm:w-auto px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 text-sm font-medium"
-                  >
-                    {t('dashboard.start')}
-                  </button>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-6 sm:py-8">
-              <FiTarget className="text-3xl sm:text-4xl text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600 dark:text-gray-400 text-sm sm:text-base">{t('dashboard.noTasksYet')}</p>
-            </div>
-          )}
+        {/* Daily Tasks */}
+        <div className="lg:col-span-2">
+          <DailyTaskList 
+            onTaskSelect={handleTaskSelect}
+            onStartTask={handleStartTask}
+          />
         </div>
 
         {/* Quick Actions */}
@@ -350,6 +356,26 @@ const Dashboard: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Task Detail Modal */}
+      {selectedTask && (
+        <TaskDetailModal
+          task={selectedTask}
+          isOpen={showTaskDetail}
+          onClose={() => {
+            setShowTaskDetail(false);
+            setSelectedTask(null);
+          }}
+          onUpdate={handleTaskUpdate}
+          onDelete={() => {
+            setTasks(prev => prev.filter(t => t._id !== selectedTask._id));
+            setShowTaskDetail(false);
+            setSelectedTask(null);
+            fetchDailyTasks(); // Refresh daily tasks
+          }}
+          onStart={() => handleStartTask(selectedTask._id)}
+        />
+      )}
     </div>
   );
 };

@@ -40,10 +40,11 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState('');
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string>('');
+  const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingConversation, setIsLoadingConversation] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
 
   const toggleOpen = () => {
@@ -84,6 +85,9 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
   };
 
   const switchConversation = async (conversationId: string) => {
+    if (conversationId === activeConversationId) return;
+    
+    setIsLoadingConversation(true);
     try {
       const conv = await activateConversation(conversationId);
       setActiveConversationId(conversationId);
@@ -96,6 +100,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
       })));
     } catch (error) {
       console.error('Failed to switch conversation:', error);
+    } finally {
+      setIsLoadingConversation(false);
     }
   };
 
@@ -158,7 +164,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
 
   // Panel content
   const panel = (
-    <div className="w-80 h-[500px] bg-white dark:bg-gray-800 shadow-xl rounded-2xl flex flex-col overflow-hidden border border-gray-200 dark:border-gray-700">
+    <div className={`${fullPage ? 'w-full max-w-4xl' : 'w-80'} ${fullPage ? 'h-full' : 'h-[500px]'} bg-white dark:bg-gray-800 shadow-xl rounded-2xl flex flex-col overflow-hidden border border-gray-200 dark:border-gray-700`}>
       <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-4 py-3 flex justify-between items-center">
         <div className="flex items-center space-x-2">
           <AiOutlineBulb className="text-lg" />
@@ -189,7 +195,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
           <select
             value={activeConversationId}
             onChange={(e) => switchConversation(e.target.value)}
-            className="w-full text-xs px-2 py-1 border rounded bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+            disabled={isLoadingConversation}
+            className="w-full text-xs px-2 py-1 border rounded bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 disabled:opacity-50"
           >
             {conversations.map(conv => (
               <option key={conv._id} value={conv._id}>
@@ -197,53 +204,73 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
               </option>
             ))}
           </select>
+          {isLoadingConversation && (
+            <div className="text-xs text-blue-600 dark:text-blue-400 mt-1 flex items-center">
+              <div className="w-3 h-3 border border-blue-600 border-t-transparent rounded-full animate-spin mr-1"></div>
+              Đang tải cuộc trò chuyện...
+            </div>
+          )}
         </div>
       )}
       
       <div className="flex-1 p-3 overflow-y-auto space-y-3">
-        {messages.map((m, i) => (
-          <div key={i} className={`${m.from === 'user' ? 'text-right' : 'text-left'}`}>
-            <div className={`inline-block max-w-[85%] px-3 py-2 rounded-2xl text-sm ${
-              m.from === 'user' 
-                ? 'bg-blue-500 text-white' 
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200'
-            }`}>
-              {m.from === 'bot' ? (
-                <MarkdownRenderer content={m.text} />
-              ) : (
-                <div className="whitespace-pre-wrap">{m.text}</div>
-              )}
-              
-              {m.type === 'project' && m.data && (
-                <div className="mt-3 pt-3 border-t border-gray-300 dark:border-gray-600">
-                  <button
-                    onClick={() => sendMessage('Có, tạo dự án')}
-                    className="w-full px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-xs font-medium"
-                  >
-                    ✅ Tạo dự án này
-                  </button>
+        {isLoadingConversation ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center">
+              <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Đang tải tin nhắn...</p>
+            </div>
+          </div>
+        ) : (
+          <>
+            {messages.map((m, i) => (
+              <div key={i} className={`${m.from === 'user' ? 'text-right' : 'text-left'}`}>
+                <div className={`inline-block max-w-[85%] px-3 py-2 rounded-2xl text-sm ${
+                  m.from === 'user' 
+                    ? 'bg-blue-500 text-white' 
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200'
+                }`}>
+                  {m.from === 'bot' ? (
+                    <MarkdownRenderer content={m.text} />
+                  ) : (
+                    <div className="whitespace-pre-wrap">{m.text}</div>
+                  )}
+                  
+                  {m.type === 'project' && m.data && (
+                    <div className="mt-3 pt-3 border-t border-gray-300 dark:border-gray-600">
+                      <button
+                        onClick={() => sendMessage('ok')}
+                        className="w-full px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-xs font-medium"
+                      >
+                        ✅ Tạo dự án này
+                      </button>
+                    </div>
+                  )}
+                  
+                  <div className="text-xs opacity-70 mt-2 flex items-center justify-between">
+                    <span>{new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    <span className="text-xs opacity-50">
+                      {new Date(m.timestamp).toLocaleDateString()}
+                    </span>
+                  </div>
                 </div>
-              )}
-              
-              <div className="text-xs opacity-70 mt-2">
-                {new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </div>
-            </div>
-          </div>
-        ))}
-        
-        {isLoading && (
-          <div className="text-left">
-            <div className="inline-block bg-gray-100 dark:bg-gray-700 px-3 py-2 rounded-2xl">
-              <div className="flex space-x-1">
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+            ))}
+            
+            {isLoading && (
+              <div className="text-left">
+                <div className="inline-block bg-gray-100 dark:bg-gray-700 px-3 py-2 rounded-2xl">
+                  <div className="flex space-x-1">
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
+            )}
+            <div ref={endRef} />
+          </>
         )}
-        <div ref={endRef} />
       </div>
       
       <div className="p-3 border-t border-gray-200 dark:border-gray-700">
@@ -254,11 +281,11 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
             placeholder="Mô tả công việc..."
-            disabled={isLoading}
+            disabled={isLoading || isLoadingConversation}
           />
           <button
             onClick={() => sendMessage()}
-            disabled={isLoading || !input.trim()}
+            disabled={isLoading || !input.trim() || isLoadingConversation}
             className="px-3 py-2 bg-blue-500 text-white rounded-xl hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
           >
             Gửi
@@ -268,7 +295,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
         <div className="flex justify-between items-center">
           <button
             onClick={createNewConversation}
-            className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+            disabled={isLoadingConversation}
+            className="text-xs text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50"
           >
             + Cuộc trò chuyện mới
           </button>
@@ -295,13 +323,17 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
   
   // Float widget
   return (
-    <div className="fixed bottom-6 right-6 z-50">
-      {open && panel}
+    <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50">
+      {open && (
+        <div className="mb-4">
+          {panel}
+        </div>
+      )}
       <button
         onClick={toggleOpen}
-        className="w-14 h-14 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 text-white flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+        className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 text-white flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
       >
-        <AiOutlineMessage size={24} />
+        <AiOutlineMessage className="text-lg sm:text-xl" />
       </button>
     </div>
   );

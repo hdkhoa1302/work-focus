@@ -69,6 +69,7 @@ const ChatPage: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [whiteboardItems, setWhiteboardItems] = useState<WhiteboardItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingConversation, setIsLoadingConversation] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -122,6 +123,9 @@ const ChatPage: React.FC = () => {
   };
 
   const switchConversation = async (conversationId: string) => {
+    if (conversationId === activeConversationId) return;
+    
+    setIsLoadingConversation(true);
     try {
       const conv = await activateConversation(conversationId);
       setActiveConversationId(conversationId);
@@ -134,6 +138,8 @@ const ChatPage: React.FC = () => {
       })));
     } catch (error) {
       console.error('Failed to switch conversation:', error);
+    } finally {
+      setIsLoadingConversation(false);
     }
   };
 
@@ -279,7 +285,7 @@ const ChatPage: React.FC = () => {
                   {conv.title}
                 </p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {new Date(conv.updatedAt).toLocaleDateString()}
+                  {new Date(conv.updatedAt).toLocaleDateString()} - {new Date(conv.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </p>
               </div>
               <button
@@ -298,49 +304,72 @@ const ChatPage: React.FC = () => {
 
       {/* Chat Area */}
       <div className="flex-1 flex flex-col">
+        {isLoadingConversation && (
+          <div className="bg-blue-50 dark:bg-blue-900/20 border-b border-blue-200 dark:border-blue-800 px-4 py-2">
+            <div className="flex items-center space-x-2 text-blue-600 dark:text-blue-400">
+              <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+              <span className="text-sm">Đang tải cuộc trò chuyện...</span>
+            </div>
+          </div>
+        )}
+        
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {messages.map((message, index) => (
-            <div key={index} className={`flex ${message.from === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[80%] p-4 rounded-2xl ${
-                message.from === 'user' 
-                  ? 'bg-blue-500 text-white' 
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100'
-              }`}>
-                {message.from === 'bot' ? (
-                  <MarkdownRenderer content={message.text} />
-                ) : (
-                  <div className="whitespace-pre-wrap">{message.text}</div>
-                )}
-                
-                {message.type === 'project' && message.data && (
-                  <div className="mt-3 pt-3 border-t border-gray-300 dark:border-gray-600">
-                    <button
-                      onClick={() => sendMessage('Có, tạo dự án')}
-                      className="w-full px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-medium"
-                    >
-                      ✅ Tạo dự án này
-                    </button>
+          {isLoadingConversation ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center">
+                <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                <p className="text-gray-600 dark:text-gray-400">Đang tải tin nhắn...</p>
+              </div>
+            </div>
+          ) : (
+            <>
+              {messages.map((message, index) => (
+                <div key={index} className={`flex ${message.from === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[80%] p-4 rounded-2xl ${
+                    message.from === 'user' 
+                      ? 'bg-blue-500 text-white' 
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100'
+                  }`}>
+                    {message.from === 'bot' ? (
+                      <MarkdownRenderer content={message.text} />
+                    ) : (
+                      <div className="whitespace-pre-wrap">{message.text}</div>
+                    )}
+                    
+                    {message.type === 'project' && message.data && (
+                      <div className="mt-3 pt-3 border-t border-gray-300 dark:border-gray-600">
+                        <button
+                          onClick={() => sendMessage('ok')}
+                          className="w-full px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-medium"
+                        >
+                          ✅ Tạo dự án này
+                        </button>
+                      </div>
+                    )}
+                    
+                    <div className="text-xs opacity-70 mt-2 flex items-center justify-between">
+                      <span>{new Date(message.timestamp).toLocaleTimeString()}</span>
+                      <span className="opacity-50">
+                        {new Date(message.timestamp).toLocaleDateString()}
+                      </span>
+                    </div>
                   </div>
-                )}
-                
-                <div className="text-xs opacity-70 mt-2">
-                  {new Date(message.timestamp).toLocaleTimeString()}
                 </div>
-              </div>
-            </div>
-          ))}
-          {isLoading && (
-            <div className="flex justify-start">
-              <div className="bg-gray-100 dark:bg-gray-700 p-4 rounded-2xl">
-                <div className="flex space-x-2">
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+              ))}
+              {isLoading && (
+                <div className="flex justify-start">
+                  <div className="bg-gray-100 dark:bg-gray-700 p-4 rounded-2xl">
+                    <div className="flex space-x-2">
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
+              )}
+              <div ref={endRef} />
+            </>
           )}
-          <div ref={endRef} />
         </div>
         
         <div className="p-4 border-t border-gray-200 dark:border-gray-700">
@@ -352,11 +381,11 @@ const ChatPage: React.FC = () => {
               onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
               placeholder="Mô tả công việc hoặc đặt câu hỏi..."
               className="flex-1 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              disabled={isLoading}
+              disabled={isLoading || isLoadingConversation}
             />
             <button
               onClick={() => sendMessage()}
-              disabled={isLoading || !input.trim()}
+              disabled={isLoading || !input.trim() || isLoadingConversation}
               className="px-6 py-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               Gửi
@@ -435,7 +464,7 @@ const ChatPage: React.FC = () => {
             
             <div className="flex items-center justify-between">
               <span className="text-xs text-gray-500">
-                {new Date(item.createdAt).toLocaleDateString()}
+                {new Date(item.createdAt).toLocaleDateString()} {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </span>
               <select
                 value={item.status}
@@ -578,15 +607,15 @@ const ChatPage: React.FC = () => {
   return (
     <div className="fixed inset-0 bg-gray-50 dark:bg-gray-900 flex flex-col">
       {/* Header */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
               <AiOutlineMessage className="text-white text-xl" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">AI Agent</h1>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Trợ lý quản lý công việc thông minh</p>
+              <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-100">AI Agent</h1>
+              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Trợ lý quản lý công việc thông minh</p>
             </div>
           </div>
           

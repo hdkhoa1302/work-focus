@@ -51,6 +51,7 @@ const Dashboard: React.FC = () => {
   const [dailyData, setDailyData] = useState<DailyTasksResponse | null>(null);
   const [proactiveFeedback, setProactiveFeedback] = useState<ProactiveFeedbackResponse | null>(null);
   const [showFeedback, setShowFeedback] = useState(false);
+  const [showFullFeedback, setShowFullFeedback] = useState(false);
   const [isLoadingFeedback, setIsLoadingFeedback] = useState(false);
   const [isLoadingDailyTasks, setIsLoadingDailyTasks] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -171,46 +172,6 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="space-y-6 sm:space-y-8">
-      {/* Proactive Feedback Notification */}
-      {showFeedback && proactiveFeedback && (
-        <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl p-4 text-white shadow-lg animate-slide-up">
-          <div className="flex items-start justify-between">
-            <div className="flex items-start space-x-3">
-              <AiOutlineBulb className="text-2xl mt-1 flex-shrink-0" />
-              <div className="min-w-0 flex-1">
-                <h3 className="font-semibold mb-2">💡 AI Insights for You</h3>
-                <div className="text-blue-100 text-sm leading-relaxed">
-                  <MarkdownRenderer content={proactiveFeedback.feedback} />
-                </div>
-                <div className="mt-3 flex items-center space-x-4 text-xs text-blue-200">
-                  <span>📊 Completion: {proactiveFeedback.stats.completionRate.toFixed(1)}%</span>
-                  <span>🔥 Today: {proactiveFeedback.stats.todayPomodoros} Pomodoros</span>
-                </div>
-              </div>
-            </div>
-            <button
-              onClick={() => setShowFeedback(false)}
-              className="p-1 hover:bg-white hover:bg-opacity-20 rounded-full transition-colors flex-shrink-0"
-            >
-              <AiOutlineClose className="text-lg" />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Loading Feedback Notification */}
-      {isLoadingFeedback && !showFeedback && (
-        <div className="bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl p-4 text-white shadow-lg animate-pulse">
-          <div className="flex items-center space-x-3">
-            <FiLoader className="text-2xl animate-spin flex-shrink-0" />
-            <div>
-              <h3 className="font-semibold">💡 AI đang phân tích...</h3>
-              <p className="text-indigo-100 text-sm">Đang tạo insights cá nhân hóa cho bạn</p>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Welcome Section */}
       <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl sm:rounded-2xl p-6 sm:p-8 text-white">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
@@ -292,6 +253,44 @@ const Dashboard: React.FC = () => {
         <div className="bg-white dark:bg-gray-800 rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200 dark:border-gray-700">
           <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 sm:mb-6">{t('dashboard.quickActions')}</h2>
           
+          {/* AI Insights Card - Hiển thị compact khi có feedback */}
+          {proactiveFeedback && showFeedback && (
+            <div className="mb-4 p-3 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg text-white shadow-md">
+              <div className="flex items-start justify-between">
+                <div className="flex items-start space-x-2 min-w-0 flex-1">
+                  <AiOutlineBulb className="text-lg mt-0.5 flex-shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <h4 className="font-medium text-sm mb-1">💡 AI Insights</h4>
+                    <div className="text-blue-100 text-xs leading-relaxed line-clamp-3">
+                      <MarkdownRenderer content={proactiveFeedback.feedback.slice(0, 150) + (proactiveFeedback.feedback.length > 150 ? '...' : '')} />
+                    </div>
+                    <div className="mt-2 flex items-center space-x-3 text-xs text-blue-200">
+                      <span>📊 {proactiveFeedback.stats.completionRate.toFixed(1)}%</span>
+                      <span>🔥 {proactiveFeedback.stats.todayPomodoros}</span>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowFeedback(false)}
+                  className="p-1 hover:bg-white hover:bg-opacity-20 rounded-full transition-colors flex-shrink-0 ml-1"
+                >
+                  <AiOutlineClose className="text-sm" />
+                </button>
+              </div>
+              {proactiveFeedback.feedback.length > 150 && (
+                <button 
+                  onClick={() => {
+                    // Mở modal để xem full content
+                    setShowFullFeedback(true);
+                  }}
+                  className="mt-2 text-xs text-blue-200 hover:text-white underline"
+                >
+                  Xem thêm...
+                </button>
+              )}
+            </div>
+          )}
+
           <div className="space-y-3 sm:space-y-4">
             <button 
               onClick={() => window.dispatchEvent(new Event('create-task'))}
@@ -328,6 +327,16 @@ const Dashboard: React.FC = () => {
             </button>
           </div>
 
+          {/* Loading Feedback Indicator */}
+          {isLoadingFeedback && (
+            <div className="mt-4 p-3 bg-gradient-to-r from-indigo-100 to-purple-100 dark:from-indigo-900/20 dark:to-purple-900/20 rounded-lg border border-indigo-200 dark:border-indigo-800">
+              <div className="flex items-center space-x-2">
+                <FiLoader className="text-indigo-600 dark:text-indigo-400 animate-spin" />
+                <span className="text-sm text-indigo-800 dark:text-indigo-300">💡 AI đang phân tích insights...</span>
+              </div>
+            </div>
+          )}
+
           {/* Achievement Badge */}
           {stats.todayPomodoros >= 4 && (
             <div className="mt-4 sm:mt-6 p-3 sm:p-4 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-lg text-white">
@@ -341,12 +350,18 @@ const Dashboard: React.FC = () => {
             </div>
           )}
 
-          {/* AI Performance Insight */}
-          {proactiveFeedback && (
+          {/* AI Performance Insight - Small Summary */}
+          {proactiveFeedback && !showFeedback && (
             <div className="mt-4 sm:mt-6 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
               <div className="flex items-center space-x-2 mb-2">
                 <FiTrendingUp className="text-blue-600 dark:text-blue-400" />
                 <span className="text-sm font-medium text-blue-800 dark:text-blue-300">Performance Insight</span>
+                <button
+                  onClick={() => setShowFeedback(true)}
+                  className="ml-auto text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline"
+                >
+                  Xem chi tiết
+                </button>
               </div>
               <p className="text-xs text-blue-700 dark:text-blue-400">
                 Completion Rate: {proactiveFeedback.stats.completionRate.toFixed(1)}% | 
@@ -375,6 +390,46 @@ const Dashboard: React.FC = () => {
           }}
           onStart={() => handleStartTask(selectedTask._id)}
         />
+      )}
+
+      {/* Full Feedback Modal */}
+      {showFullFeedback && proactiveFeedback && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">💡 AI Insights Chi Tiết</h2>
+              <button
+                onClick={() => setShowFullFeedback(false)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
+              >
+                <AiOutlineClose className="text-xl text-gray-500 dark:text-gray-400" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                <div className="flex items-center space-x-4 text-sm text-blue-800 dark:text-blue-300 mb-2">
+                  <span>📊 Completion Rate: {proactiveFeedback.stats.completionRate.toFixed(1)}%</span>
+                  <span>🔥 Today's Pomodoros: {proactiveFeedback.stats.todayPomodoros}</span>
+                  <span>⏱️ Focus Time: {proactiveFeedback.stats.totalFocusTime}m</span>
+                </div>
+              </div>
+              
+              <div className="prose prose-sm max-w-none text-gray-700 dark:text-gray-300">
+                <MarkdownRenderer content={proactiveFeedback.feedback} />
+              </div>
+            </div>
+            
+            <div className="flex justify-end mt-6">
+              <button
+                onClick={() => setShowFullFeedback(false)}
+                className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

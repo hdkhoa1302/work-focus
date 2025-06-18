@@ -274,7 +274,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
 
   // Panel content
   const panel = (
-    <div className={`${fullPage ? 'w-full max-w-4xl' : 'w-80'} ${fullPage ? 'h-full' : 'h-[500px]'} bg-white dark:bg-gray-800 shadow-xl rounded-2xl flex flex-col overflow-hidden border border-gray-200 dark:border-gray-700`}>
+    <div className={`${fullPage ? 'w-full max-w-4xl' : 'w-full sm:w-96'} ${fullPage ? 'h-full' : 'h-[500px] max-h-[70vh] sm:max-h-[500px]'} bg-white dark:bg-gray-800 shadow-2xl rounded-2xl flex flex-col overflow-hidden border border-gray-200 dark:border-gray-700 backdrop-blur-sm bg-opacity-95 dark:bg-opacity-95`}>
       <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-4 py-3 flex justify-between items-center">
         <div className="flex items-center space-x-2">
           <AiOutlineBulb className="text-lg" />
@@ -298,6 +298,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
           <button 
             onClick={fullPage ? () => navigate('/') : toggleOpen}
             className="p-1 hover:bg-white hover:bg-opacity-20 rounded transition-colors"
+            title={fullPage ? 'Đóng' : 'Thu gọn'}
           >
             <AiOutlineClose className="text-lg" />
           </button>
@@ -515,20 +516,51 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
   // Float widget
   return (
     <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50">
+      {/* Chat Panel - Positioned as overlay */}
       {open && (
-        <div className="mb-4">
-          {panel}
-        </div>
+        <>
+          {/* Backdrop for mobile */}
+          <div className="sm:hidden fixed inset-0 bg-black bg-opacity-30 backdrop-blur-sm z-30 animate-in fade-in duration-300" 
+               onClick={toggleOpen} />
+          
+          <div className="absolute bottom-16 right-0 mb-2 animate-in slide-in-from-bottom-5 fade-in duration-300">
+            {/* Mobile responsive container */}
+            <div className="sm:hidden">
+              <div className="fixed inset-x-4 bottom-20 z-40">
+                {panel}
+              </div>
+            </div>
+            
+            {/* Desktop container */}
+            <div className="hidden sm:block">
+              {panel}
+            </div>
+          </div>
+        </>
       )}
+      
+      {/* Chat Button - Always in fixed position */}
       <button
         onClick={toggleOpen}
-        className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 text-white flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 relative"
+        className={`w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 text-white flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 relative z-50 ${
+          open ? 'ring-4 ring-blue-300 ring-opacity-50' : ''
+        }`}
       >
-        <AiOutlineMessage className="text-lg sm:text-xl" />
+        {/* Icon with rotation animation */}
+        <AiOutlineMessage className={`text-lg sm:text-xl transition-transform duration-300 ${
+          open ? 'rotate-12 scale-110' : ''
+        }`} />
+        
+        {/* Notification Badge */}
         {(whiteboardItems.length > 0 || unreadCount > 0) && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold animate-pulse">
             {unreadCount > 0 ? (unreadCount > 9 ? '9+' : unreadCount) : whiteboardItems.length}
           </span>
+        )}
+        
+        {/* Active indicator */}
+        {open && (
+          <div className="absolute inset-0 rounded-full bg-white bg-opacity-20 animate-pulse"></div>
         )}
       </button>
     </div>

@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createTask, Task, getProjects, Project } from '../services/api';
 import { AiOutlinePlus, AiOutlineCalendar, AiOutlineFire } from 'react-icons/ai';
-import ReactQuill from 'react-quill';
-import 'react-quill/dist/quill.snow.css';
+import TipTapEditor from './TipTapEditor';
 import useLanguage from '../hooks/useLanguage';
 
 interface TaskFormProps {
@@ -19,22 +18,6 @@ const TaskForm: React.FC<TaskFormProps> = ({ onSave }) => {
   const [deadline, setDeadline] = useState('');
   const [estimatedPomodoros, setEstimatedPomodoros] = useState(1);
   const [isExpanded, setIsExpanded] = useState(false);
-
-  // Quill modules configuration
-  const modules = {
-    toolbar: [
-      [{ 'header': [1, 2, false] }],
-      ['bold', 'italic', 'underline', 'strike'],
-      [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-      ['link', 'image'],
-      ['clean']
-    ],
-  };
-
-  const formats = [
-    'header', 'bold', 'italic', 'underline', 'strike',
-    'list', 'bullet', 'link', 'image'
-  ];
 
   // Load projects
   useEffect(() => {
@@ -143,19 +126,12 @@ const TaskForm: React.FC<TaskFormProps> = ({ onSave }) => {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 {t('tasks.description')}
               </label>
-              <div className="bg-white dark:bg-gray-700 rounded-xl border border-gray-300 dark:border-gray-600 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent transition-all duration-200">
-                <ReactQuill
-                  theme="snow"
-                  value={description}
-                  onChange={setDescription}
-                  modules={modules}
-                  formats={formats}
-                  placeholder={t('tasks.description')}
-                  style={{
-                    backgroundColor: 'transparent',
-                  }}
-                />
-              </div>
+              <TipTapEditor
+                content={description}
+                onChange={setDescription}
+                placeholder={t('tasks.description')}
+                className="focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent transition-all duration-200"
+              />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

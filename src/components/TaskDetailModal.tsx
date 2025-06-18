@@ -15,8 +15,7 @@ import {
   AiOutlineHistory
 } from 'react-icons/ai';
 import { FiPlay, FiClock, FiTrendingUp } from 'react-icons/fi';
-import ReactQuill from 'react-quill';
-import 'react-quill/dist/quill.snow.css';
+import TipTapEditor from './TipTapEditor';
 
 interface TaskDetailModalProps {
   task: Task;
@@ -41,22 +40,6 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const [projects, setProjects] = useState<Project[]>([]);
   const [newTag, setNewTag] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-
-  // Quill modules configuration
-  const modules = {
-    toolbar: [
-      [{ 'header': [1, 2, false] }],
-      ['bold', 'italic', 'underline', 'strike'],
-      [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-      ['link', 'image'],
-      ['clean']
-    ],
-  };
-
-  const formats = [
-    'header', 'bold', 'italic', 'underline', 'strike',
-    'list', 'bullet', 'link', 'image'
-  ];
 
   useEffect(() => {
     if (isOpen && task) {
@@ -242,19 +225,12 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                   Mô tả
                 </label>
                 {isEditing ? (
-                  <div className="bg-white dark:bg-gray-700 rounded-xl border border-gray-300 dark:border-gray-600 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent transition-all duration-200">
-                    <ReactQuill
-                      theme="snow"
-                      value={editData.description || ''}
-                      onChange={(value) => setEditData(prev => ({ ...prev, description: value }))}
-                      modules={modules}
-                      formats={formats}
-                      placeholder="Mô tả chi tiết về task..."
-                      style={{
-                        backgroundColor: 'transparent',
-                      }}
-                    />
-                  </div>
+                  <TipTapEditor
+                    content={editData.description || ''}
+                    onChange={(value) => setEditData(prev => ({ ...prev, description: value }))}
+                    placeholder="Mô tả chi tiết về task..."
+                    className="focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent transition-all duration-200"
+                  />
                 ) : (
                   <div className="text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700 p-4 rounded-xl">
                     {task.description ? (

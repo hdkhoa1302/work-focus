@@ -6,7 +6,7 @@ import {
   AiOutlineFlag, 
   AiOutlineLeft, 
   AiOutlineRight,
-  AiOutlineToday,
+  AiOutlineHome,
   AiOutlineFilter,
   AiOutlineWarning
 } from 'react-icons/ai';
@@ -437,7 +437,7 @@ const TaskCalendar: React.FC<TaskCalendarProps> = ({ onTaskSelect, onStartTask }
               onClick={goToToday}
               className="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium"
             >
-              <AiOutlineToday className="w-4 h-4 inline mr-1" />
+                              <AiOutlineHome className="w-4 h-4 inline mr-1" />
               Hôm nay
             </button>
             

@@ -878,7 +878,8 @@ Trả lời bằng tiếng Việt, thân thiện và có cấu trúc rõ ràng.
       // Calculate time stats
       const projectSessions = sessions.filter(s => 
         s.type === 'focus' && 
-        tasks.some(t => t._id.toString() === s.taskId)
+        s.taskId &&
+        tasks.some(t => t._id.toString() === s.taskId?.toString())
       );
       
       const totalActualHours = projectSessions.reduce((total, s) => total + (s.duration || 0), 0) / 3600;

@@ -6,8 +6,8 @@ import {
   AiOutlineCheckCircle,
   AiOutlineFire,
   AiOutlineCalendar,
-  AiOutlineTrendingUp,
-  AiOutlineTrendingDown
+  AiOutlineArrowUp,
+  AiOutlineArrowDown
 } from 'react-icons/ai';
 import { FiAlertTriangle, FiClock, FiTarget, FiTrendingUp } from 'react-icons/fi';
 
@@ -228,12 +228,12 @@ const ProjectProgressCard: React.FC<ProjectProgressCardProps> = ({ projectId, on
             <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
               {projectAnalysis.requiredDailyHours > analysis.workSchedule.hoursPerDay ? (
                 <span className="flex items-center">
-                  <AiOutlineTrendingUp className="w-3 h-3 mr-1 text-red-500" />
+                  <AiOutlineArrowUp className="w-3 h-3 mr-1 text-red-500" />
                   Vượt {formatHours(projectAnalysis.requiredDailyHours - analysis.workSchedule.hoursPerDay)}/ngày
                 </span>
               ) : (
                 <span className="flex items-center">
-                  <AiOutlineTrendingDown className="w-3 h-3 mr-1 text-green-500" />
+                  <AiOutlineArrowDown className="w-3 h-3 mr-1 text-green-500" />
                   Dưới mức bình thường
                 </span>
               )}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { postAIChat, AIChatResponse, AIChatRequest, getConversations, createConversation, activateConversation, Conversation, Message, WhiteboardItem } from '../services/api';
 import { useNavigate } from 'react-router-dom';
-import { AiOutlineMessage, AiOutlineClose, AiOutlineExpandAlt, AiOutlineBulb, AiOutlineCopy, AiOutlineCheck } from 'react-icons/ai';
+import { AiOutlineMessage, AiOutlineClose, AiOutlineExpandAlt, AiOutlineBulb, AiOutlineCopy, AiOutlineCheck, AiOutlineArrowDown } from 'react-icons/ai';
 import MarkdownRenderer from './MarkdownRenderer';
 
 interface ChatWidgetProps {
@@ -19,7 +19,12 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
   const [isLoadingConversation, setIsLoadingConversation] = useState(false);
   const [whiteboardItems, setWhiteboardItems] = useState<WhiteboardItem[]>([]);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [lastReadMessageIndex, setLastReadMessageIndex] = useState(-1);
+  
   const endRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   const toggleOpen = () => {
     const newOpenState = !open;
@@ -28,14 +33,51 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
     if (newOpenState) {
       loadConversations();
       loadWhiteboard();
+      // Focus to last message when opening
+      setTimeout(() => {
+        scrollToBottom();
+        setUnreadCount(0);
+        setLastReadMessageIndex(messages.length - 1);
+      }, 100);
     }
   };
 
   const expandChat = () => navigate('/chat');
 
+  // Enhanced scroll management
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    if (open && messages.length > 0) {
+      const timer = setTimeout(() => {
+        scrollToBottom();
+        setLastReadMessageIndex(messages.length - 1);
+        setUnreadCount(0);
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [messages, open]);
+
+  // Scroll detection for showing scroll-to-bottom button
+  useEffect(() => {
+    const handleScroll = () => {
+      if (messagesContainerRef.current) {
+        const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+        const isNearBottom = scrollHeight - scrollTop - clientHeight < 50;
+        setShowScrollToBottom(!isNearBottom && messages.length > 3);
+        
+        // Update unread count
+        if (isNearBottom) {
+          setUnreadCount(0);
+          setLastReadMessageIndex(messages.length - 1);
+        }
+      }
+    };
+
+    const container = messagesContainerRef.current;
+    if (container && open) {
+      container.addEventListener('scroll', handleScroll);
+      return () => container.removeEventListener('scroll', handleScroll);
+    }
+  }, [messages.length, open]);
 
   const loadConversations = async () => {
     try {
@@ -47,12 +89,14 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
       if (activeConv) {
         setActiveConversationId(activeConv._id);
         setMessages(activeConv.messages);
+        setLastReadMessageIndex(activeConv.messages.length - 1);
       } else if (convs.length === 0) {
         // Create first conversation
         const newConv = await createConversation();
         setConversations([newConv]);
         setActiveConversationId(newConv._id);
         setMessages(newConv.messages);
+        setLastReadMessageIndex(newConv.messages.length - 1);
       }
     } catch (error) {
       console.error('Failed to load conversations:', error);
@@ -96,6 +140,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
       const conv = await activateConversation(conversationId);
       setActiveConversationId(conversationId);
       setMessages(conv.messages);
+      setLastReadMessageIndex(conv.messages.length - 1);
+      setUnreadCount(0);
       
       // Update conversations list
       setConversations(prev => prev.map(c => ({
@@ -115,6 +161,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
       setConversations(prev => [newConv, ...prev.map(c => ({ ...c, isActive: false }))]);
       setActiveConversationId(newConv._id);
       setMessages(newConv.messages);
+      setLastReadMessageIndex(newConv.messages.length - 1);
+      setUnreadCount(0);
     } catch (error) {
       console.error('Failed to create conversation:', error);
     }
@@ -130,6 +178,15 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
     }
   };
 
+  const scrollToBottom = () => {
+    if (endRef.current) {
+      endRef.current.scrollIntoView({ 
+        behavior: 'smooth',
+        block: 'end'
+      });
+    }
+  };
+
   const sendMessage = async (messageText?: string) => {
     const text = messageText || input.trim();
     if (!text || isLoading) return;
@@ -138,6 +195,15 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setIsLoading(true);
+
+    // Update unread count if user is not at bottom
+    if (messagesContainerRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+      const isNearBottom = scrollHeight - scrollTop - clientHeight < 50;
+      if (!isNearBottom) {
+        setUnreadCount(prev => prev + 1);
+      }
+    }
 
     try {
       const response: AIChatResponse = await postAIChat({ 
@@ -177,37 +243,22 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
       }
 
       // Handle whiteboard updates
-      if (response.type === 'whiteboard_update' && response.data) {
-        // Show confirmation message but don't apply yet
-        const confirmMsg: Message = {
-          from: 'bot',
-          text: `🔄 **Đề xuất cập nhật Whiteboard**\n\n**Mục:** ${response.data.itemTitle}\n**Lý do:** ${response.data.reason}\n\nCác thay đổi được đề xuất:\n${Object.entries(response.data.updates).map(([key, value]) => 
-            `• ${key === 'status' ? 'Trạng thái' : key === 'description' ? 'Mô tả' : 'Ưu tiên'}: ${value}`
-          ).join('\n')}\n\nBạn có muốn áp dụng cập nhật này không?`,
-          timestamp: new Date(),
-          type: 'whiteboard_update_confirmation',
-          data: response.data
-        };
-        setMessages(prev => [...prev.slice(0, -1), confirmMsg]);
-      }
-
-      // Handle applying whiteboard updates
       if (response.type === 'apply_whiteboard_update' && response.data) {
         updateWhiteboardItem(response.data.itemTitle, response.data.updates);
-        
-        // Show success message
-        const successMsg: Message = {
-          from: 'bot',
-          text: `✅ **Cập nhật đã được áp dụng!**\n\nMục "${response.data.itemTitle}" đã được cập nhật thành công trên whiteboard.\n\nBạn có thể xem thay đổi trong tab Whiteboard.`,
-          timestamp: new Date(),
-          type: 'text'
-        };
-        setMessages(prev => [...prev.slice(0, -1), successMsg]);
       }
 
       // Trigger tasks refresh if project was created
       if (response.type === 'task') {
         window.dispatchEvent(new Event('tasks-updated'));
+      }
+
+      // Update unread count for bot response
+      if (messagesContainerRef.current) {
+        const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+        const isNearBottom = scrollHeight - scrollTop - clientHeight < 50;
+        if (!isNearBottom) {
+          setUnreadCount(prev => prev + 1);
+        }
       }
     } catch (error) {
       const errMsg: Message = { 
@@ -277,7 +328,11 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
         </div>
       )}
       
-      <div className="flex-1 p-3 overflow-y-auto space-y-4">
+      {/* Messages Container */}
+      <div 
+        ref={messagesContainerRef}
+        className="flex-1 p-3 overflow-y-auto space-y-4 relative"
+      >
         {isLoadingConversation ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
@@ -287,77 +342,85 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
           </div>
         ) : (
           <>
-            {messages.map((m, i) => (
-              <div key={i} className={`${m.from === 'user' ? 'text-right' : 'text-left'}`}>
-                <div className={`inline-block max-w-[90%] px-3 py-2 rounded-2xl text-sm relative group ${
-                  m.from === 'user' 
-                    ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white' 
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200'
-                }`}>
-                  
-                  {/* Copy button */}
-                  <button
-                    onClick={() => copyToClipboard(m.text, `${i}`)}
-                    className={`absolute top-1 right-1 p-1 rounded opacity-0 group-hover:opacity-100 transition-all duration-200 ${
-                      m.from === 'user' 
-                        ? 'bg-white/20 hover:bg-white/30 text-white' 
-                        : 'bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-600 dark:text-gray-400'
-                    }`}
-                    title="Copy message"
-                  >
-                    {copiedMessageId === `${i}` ? (
-                      <AiOutlineCheck className="w-3 h-3" />
-                    ) : (
-                      <AiOutlineCopy className="w-3 h-3" />
+            {messages.map((m, i) => {
+              const isUnread = i > lastReadMessageIndex;
+              return (
+                <div key={i} className={`${m.from === 'user' ? 'text-right' : 'text-left'}`}>
+                  <div className={`inline-block max-w-[90%] px-3 py-2 rounded-2xl text-sm relative group ${
+                    m.from === 'user' 
+                      ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white' 
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200'
+                  } ${isUnread ? 'ring-2 ring-blue-400 ring-opacity-50' : ''}`}>
+                    
+                    {/* Unread indicator */}
+                    {isUnread && (
+                      <div className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
                     )}
-                  </button>
 
-                  <div className="pr-6">
-                    {m.from === 'bot' ? (
-                      <MarkdownRenderer content={m.text} />
-                    ) : (
-                      <div className="whitespace-pre-wrap">{m.text}</div>
+                    {/* Copy button */}
+                    <button
+                      onClick={() => copyToClipboard(m.text, `${i}`)}
+                      className={`absolute top-1 right-1 p-1 rounded opacity-0 group-hover:opacity-100 transition-all duration-200 ${
+                        m.from === 'user' 
+                          ? 'bg-white/20 hover:bg-white/30 text-white' 
+                          : 'bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-600 dark:text-gray-400'
+                      }`}
+                      title="Copy message"
+                    >
+                      {copiedMessageId === `${i}` ? (
+                        <AiOutlineCheck className="w-3 h-3" />
+                      ) : (
+                        <AiOutlineCopy className="w-3 h-3" />
+                      )}
+                    </button>
+
+                    <div className="pr-6">
+                      {m.from === 'bot' ? (
+                        <MarkdownRenderer content={m.text} />
+                      ) : (
+                        <div className="whitespace-pre-wrap">{m.text}</div>
+                      )}
+                    </div>
+                    
+                    {/* Interactive buttons */}
+                    {m.type === 'project' && m.data && (
+                      <div className="mt-3 pt-3 border-t border-gray-300 dark:border-gray-600">
+                        <button
+                          onClick={() => sendMessage('Có, tạo dự án')}
+                          className="w-full px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-xs font-medium"
+                        >
+                          ✅ Tạo dự án này
+                        </button>
+                      </div>
                     )}
-                  </div>
-                  
-                  {/* Interactive buttons for AI suggestions */}
-                  {m.type === 'project' && m.data && (
-                    <div className="mt-3 pt-3 border-t border-gray-300 dark:border-gray-600">
-                      <button
-                        onClick={() => sendMessage('Có, tạo dự án')}
-                        className="w-full px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-xs font-medium"
-                      >
-                        ✅ Tạo dự án này
-                      </button>
-                    </div>
-                  )}
 
-                  {m.type === 'whiteboard_update_confirmation' && m.data && (
-                    <div className="mt-3 pt-3 border-t border-gray-300 dark:border-gray-600 space-y-2">
-                      <button
-                        onClick={() => sendMessage('Có, áp dụng cập nhật')}
-                        className="w-full px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-xs font-medium"
-                      >
-                        ✅ Áp dụng cập nhật
-                      </button>
-                      <button
-                        onClick={() => sendMessage('Không, bỏ qua')}
-                        className="w-full px-3 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-xs font-medium"
-                      >
-                        ❌ Bỏ qua
-                      </button>
+                    {m.type === 'whiteboard_update' && m.data && (
+                      <div className="mt-3 pt-3 border-t border-gray-300 dark:border-gray-600 space-y-2">
+                        <button
+                          onClick={() => sendMessage('Có, áp dụng cập nhật')}
+                          className="w-full px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-xs font-medium"
+                        >
+                          ✅ Áp dụng cập nhật
+                        </button>
+                        <button
+                          onClick={() => sendMessage('Không, bỏ qua')}
+                          className="w-full px-3 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-xs font-medium"
+                        >
+                          ❌ Bỏ qua
+                        </button>
+                      </div>
+                    )}
+                    
+                    <div className="text-xs opacity-70 mt-2 flex items-center justify-between">
+                      <span>{new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                      <span className="text-xs opacity-50">
+                        {new Date(m.timestamp).toLocaleDateString()}
+                      </span>
                     </div>
-                  )}
-                  
-                  <div className="text-xs opacity-70 mt-2 flex items-center justify-between">
-                    <span>{new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                    <span className="text-xs opacity-50">
-                      {new Date(m.timestamp).toLocaleDateString()}
-                    </span>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
             
             {isLoading && (
               <div className="text-left">
@@ -372,6 +435,21 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
             )}
             <div ref={endRef} />
           </>
+        )}
+
+        {/* Scroll to bottom button */}
+        {showScrollToBottom && (
+          <button
+            onClick={scrollToBottom}
+            className="absolute bottom-4 right-4 w-8 h-8 bg-blue-500 text-white rounded-full shadow-lg hover:bg-blue-600 transition-all duration-200 flex items-center justify-center z-10"
+          >
+            <AiOutlineArrowDown className="w-4 h-4" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center font-bold">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
+          </button>
         )}
       </div>
       
@@ -402,14 +480,25 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
           >
             + Cuộc trò chuyện mới
           </button>
-          {!fullPage && (
-            <button
-              onClick={expandChat}
-              className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
-            >
-              🚀 Mở rộng & Whiteboard
-            </button>
-          )}
+          <div className="flex items-center space-x-2">
+            {unreadCount > 0 && (
+              <button
+                onClick={scrollToBottom}
+                className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center space-x-1"
+              >
+                <span>{unreadCount} tin nhắn mới</span>
+                <AiOutlineArrowDown className="w-3 h-3" />
+              </button>
+            )}
+            {!fullPage && (
+              <button
+                onClick={expandChat}
+                className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                🚀 Mở rộng & Whiteboard
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -436,9 +525,9 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
         className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 text-white flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 relative"
       >
         <AiOutlineMessage className="text-lg sm:text-xl" />
-        {whiteboardItems.length > 0 && (
+        {(whiteboardItems.length > 0 || unreadCount > 0) && (
           <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-            {whiteboardItems.length}
+            {unreadCount > 0 ? (unreadCount > 9 ? '9+' : unreadCount) : whiteboardItems.length}
           </span>
         )}
       </button>

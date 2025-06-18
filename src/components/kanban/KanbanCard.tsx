@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Task, updateTask } from '../../services/api';
-import { AiOutlineDelete, AiOutlineEdit, AiOutlineCalendar, AiOutlineFire, AiOutlineFlag } from 'react-icons/ai';
+import { AiOutlineDelete, AiOutlineEdit, AiOutlineCalendar, AiOutlineFire, AiOutlineFlag, AiOutlineEye } from 'react-icons/ai';
 import { FiPlay, FiClock, FiCheckCircle } from 'react-icons/fi';
 
 interface KanbanCardProps {
@@ -12,6 +12,7 @@ interface KanbanCardProps {
   };
   onDelete: () => void;
   onStart: () => void;
+  onViewDetails: () => void;
   isDragging?: boolean;
 }
 
@@ -20,6 +21,7 @@ const KanbanCard: React.FC<KanbanCardProps> = ({
   progress,
   onDelete,
   onStart,
+  onViewDetails,
   isDragging = false
 }) => {
   const [isHovered, setIsHovered] = useState(false);
@@ -120,11 +122,12 @@ const KanbanCard: React.FC<KanbanCardProps> = ({
 
   return (
     <div
-      className={`bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all duration-300 ${
+      className={`bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer ${
         isDragging ? 'shadow-xl ring-2 ring-blue-500 ring-opacity-50' : ''
       } backdrop-blur-sm bg-opacity-95 dark:bg-opacity-90`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
+      onClick={onViewDetails}
     >
       {/* Header */}
       <div className="flex items-start justify-between mb-3">
@@ -143,6 +146,16 @@ const KanbanCard: React.FC<KanbanCardProps> = ({
         <div className={`flex items-center space-x-1 transition-all duration-300 ${
           isHovered ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
         }`}>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onViewDetails();
+            }}
+            className="p-1.5 text-blue-500 hover:text-blue-600 rounded-full hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-300"
+            title="Xem chi tiết"
+          >
+            <AiOutlineEye className="w-4 h-4" />
+          </button>
           <button
             onClick={(e) => {
               e.stopPropagation();

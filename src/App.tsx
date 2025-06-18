@@ -10,7 +10,7 @@ import CompactTimerCard from './components/timer/CompactTimerCard';
 import FloatingTimer from './components/timer/FloatingTimer';
 import ChatWidget from './components/ChatWidget';
 import EncouragementModal from './components/EncouragementModal';
-import { AiOutlineMoon, AiOutlineSun, AiOutlineBell, AiOutlineUser } from 'react-icons/ai';
+import { AiOutlineMoon, AiOutlineSun, AiOutlineBell, AiOutlineUser, AiOutlineMenu, AiOutlineClose } from 'react-icons/ai';
 import { FiLogOut } from 'react-icons/fi';
 import { getTasks, Task, getEncouragement } from './services/api';
 import { getConfig as apiGetConfig } from './services/api';
@@ -25,6 +25,7 @@ function AppContent() {
   });
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [showFloatingTimer, setShowFloatingTimer] = useState(false);
+  const [showMobileSidebar, setShowMobileSidebar] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState<string>('');
   
@@ -50,6 +51,20 @@ function AppContent() {
       fetchConfig();
     }
   }, [user]);
+
+  // Close mobile sidebar when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const sidebar = document.getElementById('mobile-sidebar');
+      const menuButton = document.getElementById('mobile-menu-button');
+      if (showMobileSidebar && sidebar && !sidebar.contains(event.target as Node) && !menuButton?.contains(event.target as Node)) {
+        setShowMobileSidebar(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showMobileSidebar]);
 
   const fetchTasks = async () => {
     try {
@@ -111,7 +126,6 @@ function AppContent() {
       fetchTasks();
       window.dispatchEvent(new Event('tasks-updated'));
       if (type === 'focus') {
-        // Sau khi phiên tập trung kết thúc, chuyển UI sang phiên nghỉ, chờ user nhấn Start
         const breakDuration = config.break * 60 * 1000;
         setMode('break');
         setRemaining(breakDuration);
@@ -185,45 +199,67 @@ function AppContent() {
           <Route path="/chat" element={<ChatPage />} />
           <Route path="/*" element={
             <>
-              <Sidebar />
-              <div className="flex-1 flex flex-col overflow-hidden">
+              {/* Mobile Sidebar Overlay */}
+              {showMobileSidebar && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden" />
+              )}
+
+              {/* Sidebar */}
+              <div className={`${showMobileSidebar ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 fixed lg:static inset-y-0 left-0 z-50 transition-transform duration-300 ease-in-out lg:transition-none`}>
+                <Sidebar onClose={() => setShowMobileSidebar(false)} />
+              </div>
+
+              <div className="flex-1 flex flex-col overflow-hidden min-w-0">
                 {/* Header */}
-                <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between transition-colors duration-200">
-                  <div className="flex items-center space-x-4">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-4 flex items-center justify-between transition-colors duration-200">
+                  <div className="flex items-center space-x-4 min-w-0">
+                    {/* Mobile Menu Button */}
+                    <button
+                      id="mobile-menu-button"
+                      onClick={() => setShowMobileSidebar(!showMobileSidebar)}
+                      className="lg:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200"
+                    >
+                      {showMobileSidebar ? (
+                        <AiOutlineClose className="text-xl text-gray-600 dark:text-gray-400" />
+                      ) : (
+                        <AiOutlineMenu className="text-xl text-gray-600 dark:text-gray-400" />
+                      )}
+                    </button>
+
+                    <div className="flex items-center space-x-3 min-w-0">
+                      <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center flex-shrink-0">
                         <span className="text-white font-bold text-sm">F</span>
                       </div>
-                      <div>
-                        <h1 className="text-xl font-bold text-gray-800 dark:text-gray-100">{t('common.appName')}</h1>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">{t('common.welcome')}, {user.name}</p>
+                      <div className="min-w-0">
+                        <h1 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-gray-100 truncate">{t('common.appName')}</h1>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 hidden sm:block truncate">{t('common.welcome')}, {user.name}</p>
                       </div>
                     </div>
                   </div>
                   
-                  <div className="flex items-center space-x-3">
+                  <div className="flex items-center space-x-2 sm:space-x-3">
                     <button className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200">
-                      <AiOutlineBell className="text-xl text-gray-600 dark:text-gray-400" />
+                      <AiOutlineBell className="text-lg sm:text-xl text-gray-600 dark:text-gray-400" />
                     </button>
                     <button
                       onClick={() => setIsDark(!isDark)}
                       className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200"
                     >
                       {isDark ? 
-                        <AiOutlineSun className="text-xl text-yellow-400" /> : 
-                        <AiOutlineMoon className="text-xl text-gray-600" />
+                        <AiOutlineSun className="text-lg sm:text-xl text-yellow-400" /> : 
+                        <AiOutlineMoon className="text-lg sm:text-xl text-gray-600" />
                       }
                     </button>
                     
                     {/* User Menu */}
                     <div className="relative group">
                       <button className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200">
-                        <div className="w-8 h-8 bg-gradient-to-r from-green-400 to-blue-500 rounded-full flex items-center justify-center">
+                        <div className="w-8 h-8 bg-gradient-to-r from-green-400 to-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
                           <span className="text-white font-medium text-sm">
                             {user.name.charAt(0).toUpperCase()}
                           </span>
                         </div>
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300 hidden md:block">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300 hidden md:block truncate max-w-24">
                           {user.name}
                         </span>
                       </button>
@@ -231,8 +267,8 @@ function AppContent() {
                       {/* Dropdown Menu */}
                       <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
                         <div className="p-3 border-b border-gray-200 dark:border-gray-700">
-                          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{user.name}</p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">{user.email}</p>
+                          <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{user.name}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{user.email}</p>
                         </div>
                         <div className="p-2">
                           <button
@@ -249,7 +285,7 @@ function AppContent() {
                 </header>
 
                 {/* Compact Timer */}
-                <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-3 transition-colors duration-200">
+                <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-3 transition-colors duration-200">
                   <CompactTimerCard
                     remaining={remaining}
                     mode={mode}
@@ -263,7 +299,7 @@ function AppContent() {
                 </div>
 
                 {/* Main Content */}
-                <main className="flex-1 overflow-auto p-6">
+                <main className="flex-1 overflow-auto p-4 sm:p-6">
                   <div className="max-w-7xl mx-auto">
                     <Routes>
                       <Route path="/" element={<Dashboard />} />

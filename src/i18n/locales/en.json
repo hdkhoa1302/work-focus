@@ -10,7 +10,9 @@
     "edit": "Edit",
     "complete": "Complete",
     "search": "Search",
-    "all": "All"
+    "all": "All",
+    "simple": "Simple",
+    "advanced": "Advanced"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -18,6 +20,24 @@
     "projects": "Projects",
     "reports": "Reports",
     "settings": "Settings"
+  },
+  "auth": {
+    "welcomeBack": "Welcome Back",
+    "signInDescription": "Sign in to your FocusTrack account",
+    "emailAddress": "Email Address",
+    "password": "Password",
+    "enterEmail": "Enter your email",
+    "enterPassword": "Enter your password",
+    "rememberMe": "Remember me",
+    "forgotPassword": "Forgot password?",
+    "signIn": "Sign In",
+    "signingIn": "Signing in...",
+    "signUp": "Sign up",
+    "noAccount": "Don't have an account?",
+    "emailRequired": "Email is required",
+    "emailInvalid": "Email is invalid",
+    "passwordRequired": "Password is required",
+    "passwordMinLength": "Password must be at least 6 characters"
   },
   "tasks": {
     "title": "Tasks",
@@ -132,4 +152,4 @@
     "noPerformanceData": "No task performance data available yet.",
     "completePomodorosToSeeProgress": "Complete some Pomodoro sessions to see your progress!"
   }
-} 
+}

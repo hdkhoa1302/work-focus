@@ -43,10 +43,10 @@ const SettingsPage: React.FC = () => {
     const handleApps = (event: any, apps: string[]) => {
       setAvailableApps(apps);
     };
-    window.ipc.send('get-running-apps', null);
-    window.ipc.on('running-apps-response', handleApps);
+    window.ipc?.send('get-running-apps', null);
+    window.ipc?.on('running-apps-response', handleApps);
     return () => {
-      window.ipc.removeListener('running-apps-response', handleApps);
+      window.ipc?.removeListener('running-apps-response', handleApps);
     };
   }, []);
 
@@ -68,7 +68,7 @@ const SettingsPage: React.FC = () => {
     try {
       await apiSaveConfig(config);
       setSaveMessage(t('settings.settingsSaved'));
-        setTimeout(() => setSaveMessage(''), 3000);
+      setTimeout(() => setSaveMessage(''), 3000);
     } catch (error) {
       console.error('Failed to save config:', error);
       setSaveMessage('Failed to save settings. Please try again.');
@@ -102,15 +102,15 @@ const SettingsPage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 sm:space-y-8">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t('settings.title')}</h1>
-          <p className="text-gray-600 dark:text-gray-400">Customize your FocusTrack experience</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100">{t('settings.title')}</h1>
+          <p className="text-gray-600 dark:text-gray-400 text-sm sm:text-base">Customize your FocusTrack experience</p>
         </div>
         
-        <div className="flex items-center space-x-3">
+        <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-3">
           {saveMessage && (
             <span className={`text-sm font-medium ${
               saveMessage.includes('successfully') ? 'text-green-600' : 'text-red-600'
@@ -118,38 +118,40 @@ const SettingsPage: React.FC = () => {
               {saveMessage}
             </span>
           )}
-          <button
-            onClick={fetchConfig}
-            className="flex items-center space-x-2 px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors duration-200"
-          >
-            <FiRefreshCw className="text-lg" />
-            <span>Reset</span>
-          </button>
-          <button
-            onClick={saveConfig}
-            disabled={isSaving}
-            className="flex items-center space-x-2 px-6 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:from-blue-600 hover:to-purple-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl"
-          >
-            <AiOutlineSave className="text-lg" />
-            <span>{isSaving ? 'Saving...' : t('settings.saveSettings')}</span>
-          </button>
+          <div className="flex space-x-2">
+            <button
+              onClick={fetchConfig}
+              className="flex items-center space-x-2 px-3 sm:px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors duration-200 text-sm"
+            >
+              <FiRefreshCw className="text-base sm:text-lg" />
+              <span className="hidden sm:inline">Reset</span>
+            </button>
+            <button
+              onClick={saveConfig}
+              disabled={isSaving}
+              className="flex items-center space-x-2 px-4 sm:px-6 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:from-blue-600 hover:to-purple-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl text-sm"
+            >
+              <AiOutlineSave className="text-base sm:text-lg" />
+              <span>{isSaving ? 'Saving...' : t('settings.saveSettings')}</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
         {/* Appearance Settings */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center space-x-3 mb-6">
-            <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center">
-              <FiGlobe className="text-xl text-blue-600 dark:text-blue-400" />
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center space-x-3 mb-4 sm:mb-6">
+            <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center flex-shrink-0">
+              <FiGlobe className="text-lg sm:text-xl text-blue-600 dark:text-blue-400" />
             </div>
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('settings.appearance')}</h2>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Customize the look and feel</p>
+            <div className="min-w-0">
+              <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100">{t('settings.appearance')}</h2>
+              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Customize the look and feel</p>
             </div>
           </div>
 
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 {t('settings.language')}
@@ -157,7 +159,7 @@ const SettingsPage: React.FC = () => {
               <select
                 value={language}
                 onChange={(e) => changeLanguage(e.target.value as 'en' | 'vi')}
-                className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-3 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 sm:px-4 py-2 sm:py-3 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
               >
                 {languages.map((lang) => (
                   <option key={lang.code} value={lang.code}>
@@ -170,18 +172,18 @@ const SettingsPage: React.FC = () => {
         </div>
 
         {/* Pomodoro Settings */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center space-x-3 mb-6">
-            <div className="w-10 h-10 bg-red-100 dark:bg-red-900 rounded-lg flex items-center justify-center">
-              <AiOutlineClockCircle className="text-xl text-red-600 dark:text-red-400" />
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center space-x-3 mb-4 sm:mb-6">
+            <div className="w-10 h-10 bg-red-100 dark:bg-red-900 rounded-lg flex items-center justify-center flex-shrink-0">
+              <AiOutlineClockCircle className="text-lg sm:text-xl text-red-600 dark:text-red-400" />
             </div>
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('settings.pomodoro')}</h2>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Configure your focus and break durations</p>
+            <div className="min-w-0">
+              <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100">{t('settings.pomodoro')}</h2>
+              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Configure your focus and break durations</p>
             </div>
           </div>
 
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 {t('settings.focusTime')}
@@ -195,7 +197,7 @@ const SettingsPage: React.FC = () => {
                   ...prev,
                   pomodoro: { ...prev.pomodoro, focus: Number(e.target.value) }
                 }))}
-                className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-3 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 sm:px-4 py-2 sm:py-3 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
               />
             </div>
 
@@ -212,31 +214,31 @@ const SettingsPage: React.FC = () => {
                   ...prev,
                   pomodoro: { ...prev.pomodoro, break: Number(e.target.value) }
                 }))}
-                className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-3 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 sm:px-4 py-2 sm:py-3 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
               />
             </div>
           </div>
         </div>
 
         {/* Notification Settings */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center space-x-3 mb-6">
-            <div className="w-10 h-10 bg-yellow-100 dark:bg-yellow-900 rounded-lg flex items-center justify-center">
-              <AiOutlineBell className="text-xl text-yellow-600 dark:text-yellow-400" />
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center space-x-3 mb-4 sm:mb-6">
+            <div className="w-10 h-10 bg-yellow-100 dark:bg-yellow-900 rounded-lg flex items-center justify-center flex-shrink-0">
+              <AiOutlineBell className="text-lg sm:text-xl text-yellow-600 dark:text-yellow-400" />
             </div>
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Notifications</h2>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Manage notification preferences</p>
+            <div className="min-w-0">
+              <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100">Notifications</h2>
+              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Manage notification preferences</p>
             </div>
           </div>
 
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-medium text-gray-900 dark:text-gray-100">Desktop Notifications</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Show notifications when sessions end</p>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
+              <div className="min-w-0">
+                <h3 className="font-medium text-gray-900 dark:text-gray-100 text-sm sm:text-base">Desktop Notifications</h3>
+                <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Show notifications when sessions end</p>
               </div>
-              <label className="relative inline-flex items-center cursor-pointer">
+              <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
                 <input
                   type="checkbox"
                   checked={config.notifications.enabled}
@@ -250,12 +252,12 @@ const SettingsPage: React.FC = () => {
               </label>
             </div>
 
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-medium text-gray-900 dark:text-gray-100">Sound Notifications</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Play sound when sessions end</p>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
+              <div className="min-w-0">
+                <h3 className="font-medium text-gray-900 dark:text-gray-100 text-sm sm:text-base">Sound Notifications</h3>
+                <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Play sound when sessions end</p>
               </div>
-              <label className="relative inline-flex items-center cursor-pointer">
+              <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
                 <input
                   type="checkbox"
                   checked={config.notifications.sound}
@@ -273,19 +275,19 @@ const SettingsPage: React.FC = () => {
       </div>
 
       {/* App Blocker */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-        <div className="flex items-center space-x-3 mb-6">
-          <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900 rounded-lg flex items-center justify-center">
-            <AiOutlineDatabase className="text-xl text-purple-600 dark:text-purple-400" />
+      <div className="bg-white dark:bg-gray-800 rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="flex items-center space-x-3 mb-4 sm:mb-6">
+          <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900 rounded-lg flex items-center justify-center flex-shrink-0">
+            <AiOutlineDatabase className="text-lg sm:text-xl text-purple-600 dark:text-purple-400" />
           </div>
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Application Blocker</h2>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Block distracting applications during focus sessions</p>
+          <div className="min-w-0">
+            <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100">Application Blocker</h2>
+            <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Block distracting applications during focus sessions</p>
           </div>
         </div>
 
         <div className="space-y-4">
-          <div className="flex space-x-2">
+          <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
             <input
               type="text"
               list="app-list"
@@ -293,7 +295,7 @@ const SettingsPage: React.FC = () => {
               value={newApp}
               onChange={e => setNewApp(e.target.value)}
               onKeyPress={e => e.key === 'Enter' && addApp()}
-              className="flex-1 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="flex-1 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 sm:px-4 py-2 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
             />
             <datalist id="app-list">
               {availableApps.map((app, index) => (
@@ -302,7 +304,7 @@ const SettingsPage: React.FC = () => {
             </datalist>
             <button
               onClick={addApp}
-              className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors duration-200"
+              className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors duration-200 text-sm font-medium"
             >
               Add
             </button>
@@ -311,17 +313,17 @@ const SettingsPage: React.FC = () => {
           <div className="space-y-2">
             {config.blockList.apps.map((app, index) => (
               <div key={index} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                <span className="text-gray-900 dark:text-gray-100">{app}</span>
+                <span className="text-gray-900 dark:text-gray-100 text-sm sm:text-base truncate">{app}</span>
                 <button
                   onClick={() => removeApp(app)}
-                  className="text-red-500 hover:text-red-700 font-medium"
+                  className="text-red-500 hover:text-red-700 font-medium text-sm flex-shrink-0 ml-2"
                 >
                   Remove
                 </button>
               </div>
             ))}
             {config.blockList.apps.length === 0 && (
-              <p className="text-gray-500 dark:text-gray-400 text-center py-4">
+              <p className="text-gray-500 dark:text-gray-400 text-center py-4 text-sm">
                 No blocked applications. Add some to stay focused!
               </p>
             )}

@@ -5,12 +5,28 @@ const api = axios.create({ baseURL: API_BASE });
 
 // Thêm interceptor để gắn JWT token vào Authorization header
 api.interceptors.request.use((config) => {
+  // Check both localStorage and sessionStorage for token
   const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
   if (token && config.headers) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
+
+// Add response interceptor to handle token expiration
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401 || error.response?.status === 403) {
+      // Token expired or invalid, clear storage and redirect to login
+      localStorage.removeItem('authToken');
+      sessionStorage.removeItem('authToken');
+      // Optionally trigger a logout event or redirect
+      window.location.reload();
+    }
+    return Promise.reject(error);
+  }
+);
 
 export interface Task {
   _id: string;

@@ -10,8 +10,37 @@ import {
   AiOutlineBulb,
   AiOutlineClose
 } from 'react-icons/ai';
-import { FiTarget, FiTrendingUp } from 'react-icons/fi';
+import { FiTarget, FiTrendingUp, FiLoader } from 'react-icons/fi';
 import useLanguage from '../hooks/useLanguage';
+
+// Simple markdown renderer component
+const MarkdownRenderer: React.FC<{ content: string }> = ({ content }) => {
+  const renderMarkdown = (text: string) => {
+    return text
+      // Headers
+      .replace(/^### (.*$)/gm, '<h3 class="text-lg font-semibold mt-4 mb-2 text-gray-900 dark:text-gray-100">$1</h3>')
+      .replace(/^## (.*$)/gm, '<h2 class="text-xl font-bold mt-4 mb-2 text-gray-900 dark:text-gray-100">$1</h2>')
+      .replace(/^# (.*$)/gm, '<h1 class="text-2xl font-bold mt-4 mb-2 text-gray-900 dark:text-gray-100">$1</h1>')
+      // Bold
+      .replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-gray-900 dark:text-gray-100">$1</strong>')
+      // Italic
+      .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>')
+      // Lists
+      .replace(/^• (.*$)/gm, '<li class="ml-4 mb-1">• $1</li>')
+      .replace(/^- (.*$)/gm, '<li class="ml-4 mb-1">• $1</li>')
+      .replace(/^\d+\. (.*$)/gm, '<li class="ml-4 mb-1">$1</li>')
+      // Line breaks
+      .replace(/\n\n/g, '<br><br>')
+      .replace(/\n/g, '<br>');
+  };
+
+  return (
+    <div 
+      className="whitespace-pre-wrap leading-relaxed"
+      dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }}
+    />
+  );
+};
 
 const Dashboard: React.FC = () => {
   const { t } = useLanguage();
@@ -19,6 +48,7 @@ const Dashboard: React.FC = () => {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [proactiveFeedback, setProactiveFeedback] = useState<ProactiveFeedbackResponse | null>(null);
   const [showFeedback, setShowFeedback] = useState(false);
+  const [isLoadingFeedback, setIsLoadingFeedback] = useState(false);
   const [stats, setStats] = useState({
     totalTasks: 0,
     completedTasks: 0,
@@ -57,8 +87,10 @@ const Dashboard: React.FC = () => {
           focusTime: Math.round(focusTime / 60) // Convert to minutes
         });
 
-        // Fetch proactive feedback periodically
-        fetchProactiveFeedback();
+        // Auto-fetch proactive feedback on initial load
+        if (tasksData.length > 0 || sessionsData.length > 0) {
+          setTimeout(() => fetchProactiveFeedback(), 2000);
+        }
       } catch (error) {
         console.error('Failed to fetch dashboard data:', error);
       }
@@ -66,12 +98,17 @@ const Dashboard: React.FC = () => {
     fetchData();
 
     // Set up periodic proactive feedback (every 30 minutes)
-    const feedbackInterval = setInterval(fetchProactiveFeedback, 30 * 60 * 1000);
+    const feedbackInterval = setInterval(() => {
+      if (tasks.length > 0 || sessions.length > 0) {
+        fetchProactiveFeedback();
+      }
+    }, 30 * 60 * 1000);
     
     return () => clearInterval(feedbackInterval);
   }, []);
 
   const fetchProactiveFeedback = async () => {
+    setIsLoadingFeedback(true);
     try {
       const feedback = await getProactiveFeedback();
       setProactiveFeedback(feedback);
@@ -82,6 +119,8 @@ const Dashboard: React.FC = () => {
       }
     } catch (error) {
       console.error('Failed to fetch proactive feedback:', error);
+    } finally {
+      setIsLoadingFeedback(false);
     }
   };
 
@@ -102,9 +141,9 @@ const Dashboard: React.FC = () => {
               <AiOutlineBulb className="text-2xl mt-1 flex-shrink-0" />
               <div className="min-w-0 flex-1">
                 <h3 className="font-semibold mb-2">💡 AI Insights for You</h3>
-                <p className="text-blue-100 text-sm leading-relaxed whitespace-pre-wrap">
-                  {proactiveFeedback.feedback}
-                </p>
+                <div className="text-blue-100 text-sm leading-relaxed">
+                  <MarkdownRenderer content={proactiveFeedback.feedback} />
+                </div>
                 <div className="mt-3 flex items-center space-x-4 text-xs text-blue-200">
                   <span>📊 Completion: {proactiveFeedback.stats.completionRate.toFixed(1)}%</span>
                   <span>🔥 Today: {proactiveFeedback.stats.todayPomodoros} Pomodoros</span>
@@ -117,6 +156,19 @@ const Dashboard: React.FC = () => {
             >
               <AiOutlineClose className="text-lg" />
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Loading Feedback Notification */}
+      {isLoadingFeedback && !showFeedback && (
+        <div className="bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl p-4 text-white shadow-lg animate-pulse">
+          <div className="flex items-center space-x-3">
+            <FiLoader className="text-2xl animate-spin flex-shrink-0" />
+            <div>
+              <h3 className="font-semibold">💡 AI đang phân tích...</h3>
+              <p className="text-indigo-100 text-sm">Đang tạo insights cá nhân hóa cho bạn</p>
+            </div>
           </div>
         </div>
       )}
@@ -256,10 +308,17 @@ const Dashboard: React.FC = () => {
             {/* AI Insights Button */}
             <button 
               onClick={fetchProactiveFeedback}
-              className="w-full flex items-center space-x-3 p-3 sm:p-4 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-lg hover:from-indigo-600 hover:to-purple-600 transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105"
+              disabled={isLoadingFeedback}
+              className="w-full flex items-center space-x-3 p-3 sm:p-4 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-lg hover:from-indigo-600 hover:to-purple-600 transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
             >
-              <AiOutlineBulb className="text-lg sm:text-xl flex-shrink-0" />
-              <span className="font-medium text-sm sm:text-base">Get AI Insights</span>
+              {isLoadingFeedback ? (
+                <FiLoader className="text-lg sm:text-xl flex-shrink-0 animate-spin" />
+              ) : (
+                <AiOutlineBulb className="text-lg sm:text-xl flex-shrink-0" />
+              )}
+              <span className="font-medium text-sm sm:text-base">
+                {isLoadingFeedback ? 'Đang phân tích...' : 'Get AI Insights'}
+              </span>
             </button>
           </div>
 

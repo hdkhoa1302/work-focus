@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { postAIChat, AIChatResponse, AIChatRequest, createTask, getProjects, getTasks, getSuggestions, Project, Task, createProject } from '../services/api';
+import { postAIChat, AIChatResponse, AIChatRequest, getConversations, createConversation, activateConversation, deleteConversation, Conversation, Message, getProjects, getTasks, Project, Task } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import { 
   AiOutlineMessage, 
   AiOutlineClose, 
-  AiOutlineExpandAlt, 
   AiOutlineBulb,
   AiOutlineProject,
   AiOutlineCheckSquare,
@@ -15,17 +14,10 @@ import {
   AiOutlineRocket,
   AiOutlineClear,
   AiOutlineDownload,
-  AiOutlineUpload
+  AiOutlinePlus,
+  AiOutlineDelete
 } from 'react-icons/ai';
 import { FiMessageSquare, FiClipboard, FiTarget, FiTrendingUp } from 'react-icons/fi';
-
-interface Message {
-  from: 'user' | 'bot';
-  text: string;
-  timestamp: Date;
-  type?: 'text' | 'project' | 'task' | 'analysis' | 'encouragement';
-  data?: any;
-}
 
 interface WhiteboardItem {
   id: string;
@@ -40,6 +32,8 @@ interface WhiteboardItem {
 const ChatPage: React.FC = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'chat' | 'whiteboard' | 'analysis'>('chat');
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [activeConversationId, setActiveConversationId] = useState<string>('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [projects, setProjects] = useState<Project[]>([]);
@@ -49,7 +43,7 @@ const ChatPage: React.FC = () => {
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    initializeChat();
+    loadConversations();
     loadData();
   }, []);
 
@@ -57,32 +51,26 @@ const ChatPage: React.FC = () => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const initializeChat = () => {
-    const welcomeMessage: Message = {
-      from: 'bot',
-      text: `🎯 Chào mừng bạn đến với AI Agent - Trợ lý quản lý công việc thông minh!
-
-Tôi có thể giúp bạn:
-📋 **Quản lý dự án & công việc**
-• Phân tích mô tả công việc và tạo dự án
-• Chia nhỏ dự án thành các task cụ thể
-• Theo dõi tiến độ và đưa ra gợi ý
-
-🎨 **Whiteboard thông minh**
-• Ghi nhớ các quyết định quan trọng
-• Lưu trữ ý tưởng và kế hoạch
-• Theo dõi các mục tiêu đã đặt ra
-
-📊 **Phân tích & động viên**
-• Đánh giá hiệu suất làm việc
-• Đưa ra lời khuyên cải thiện
-• Động viên khi hoàn thành mục tiêu
-
-Hãy bắt đầu bằng cách mô tả công việc hoặc dự án bạn muốn thực hiện!`,
-      timestamp: new Date(),
-      type: 'text'
-    };
-    setMessages([welcomeMessage]);
+  const loadConversations = async () => {
+    try {
+      const convs = await getConversations();
+      setConversations(convs);
+      
+      // Find active conversation or create new one
+      const activeConv = convs.find(c => c.isActive);
+      if (activeConv) {
+        setActiveConversationId(activeConv._id);
+        setMessages(activeConv.messages);
+      } else if (convs.length === 0) {
+        // Create first conversation
+        const newConv = await createConversation();
+        setConversations([newConv]);
+        setActiveConversationId(newConv._id);
+        setMessages(newConv.messages);
+      }
+    } catch (error) {
+      console.error('Failed to load conversations:', error);
+    }
   };
 
   const loadData = async () => {
@@ -101,6 +89,53 @@ Hãy bắt đầu bằng cách mô tả công việc hoặc dự án bạn muố
       }
     } catch (error) {
       console.error('Failed to load data:', error);
+    }
+  };
+
+  const switchConversation = async (conversationId: string) => {
+    try {
+      const conv = await activateConversation(conversationId);
+      setActiveConversationId(conversationId);
+      setMessages(conv.messages);
+      
+      // Update conversations list
+      setConversations(prev => prev.map(c => ({
+        ...c,
+        isActive: c._id === conversationId
+      })));
+    } catch (error) {
+      console.error('Failed to switch conversation:', error);
+    }
+  };
+
+  const createNewConversation = async () => {
+    try {
+      const newConv = await createConversation(`Cuộc trò chuyện ${new Date().toLocaleDateString()}`);
+      setConversations(prev => [newConv, ...prev.map(c => ({ ...c, isActive: false }))]);
+      setActiveConversationId(newConv._id);
+      setMessages(newConv.messages);
+    } catch (error) {
+      console.error('Failed to create conversation:', error);
+    }
+  };
+
+  const handleDeleteConversation = async (conversationId: string) => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa cuộc trò chuyện này?')) return;
+    
+    try {
+      await deleteConversation(conversationId);
+      const updatedConvs = conversations.filter(c => c._id !== conversationId);
+      setConversations(updatedConvs);
+      
+      if (conversationId === activeConversationId) {
+        if (updatedConvs.length > 0) {
+          switchConversation(updatedConvs[0]._id);
+        } else {
+          createNewConversation();
+        }
+      }
+    } catch (error) {
+      console.error('Failed to delete conversation:', error);
     }
   };
 
@@ -131,266 +166,168 @@ Hãy bắt đầu bằng cách mô tả công việc hoặc dự án bạn muố
     saveWhiteboard(updatedItems);
   };
 
-  const analyzeWorkDescription = async (description: string) => {
-    const analysisPrompt = `
-Phân tích mô tả công việc sau và đưa ra cấu trúc dự án:
-"${description}"
-
-Hãy trả về JSON với format:
-{
-  "projectName": "Tên dự án",
-  "description": "Mô tả chi tiết dự án",
-  "tasks": [
-    {
-      "title": "Tên task",
-      "description": "Mô tả task",
-      "priority": 1-3,
-      "estimatedPomodoros": 1-10
-    }
-  ],
-  "timeline": "Thời gian dự kiến",
-  "keyPoints": ["Điểm quan trọng 1", "Điểm quan trọng 2"]
-}
-`;
-
-    try {
-      const response = await postAIChat({
-        model: 'gemini-2.0-flash',
-        contents: analysisPrompt
-      });
-
-      // Try to parse JSON from response
-      const jsonMatch = response.text.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const analysis = JSON.parse(jsonMatch[0]);
-        return analysis;
-      }
-      return null;
-    } catch (error) {
-      console.error('Analysis failed:', error);
-      return null;
-    }
-  };
-
-  const generateEncouragement = async (completedTask: Task) => {
-    const encouragementPrompt = `
-Người dùng vừa hoàn thành task: "${completedTask.title}"
-Dự án: ${projects.find(p => p._id === completedTask.projectId)?.name || 'Unknown'}
-
-Hãy tạo lời động viên và phân tích:
-1. Lời chúc mừng nhiệt tình
-2. Phân tích tiến độ hiện tại
-3. Điểm mạnh đã thể hiện
-4. Gợi ý cải thiện (nếu có)
-5. Động lực cho bước tiếp theo
-
-Trả lời bằng tiếng Việt, thân thiện và tích cực.
-`;
-
-    try {
-      const response = await postAIChat({
-        model: 'gemini-2.0-flash',
-        contents: encouragementPrompt
-      });
-      return response.text;
-    } catch (error) {
-      return `🎉 Chúc mừng bạn đã hoàn thành "${completedTask.title}"! Tiếp tục phát huy nhé!`;
-    }
-  };
-
   const sendMessage = async () => {
     const text = input.trim();
     if (!text || isLoading) return;
-
-    const userMessage: Message = {
-      from: 'user',
-      text,
-      timestamp: new Date()
-    };
-    setMessages(prev => [...prev, userMessage]);
+    
+    const userMsg: Message = { from: 'user', text, timestamp: new Date() };
+    setMessages(prev => [...prev, userMsg]);
     setInput('');
     setIsLoading(true);
 
     try {
-      // Check for specific commands
-      if (text.toLowerCase().includes('phân tích') && text.toLowerCase().includes('dự án')) {
-        const analysis = await analyzeWorkDescription(text);
-        if (analysis) {
-          const botMessage: Message = {
-            from: 'bot',
-            text: `🎯 **Phân tích dự án hoàn tất!**
+      const response: AIChatResponse = await postAIChat({ 
+        message: text,
+        conversationId: activeConversationId
+      });
+      
+      const botMsg: Message = { 
+        from: 'bot', 
+        text: response.message, 
+        timestamp: new Date(),
+        type: response.type as any,
+        data: response.data
+      };
+      setMessages(prev => [...prev, botMsg]);
 
-**📋 Dự án:** ${analysis.projectName}
-**📝 Mô tả:** ${analysis.description}
-**⏱️ Thời gian:** ${analysis.timeline}
+      // Update conversation ID if it changed (new conversation)
+      if (response.conversationId !== activeConversationId) {
+        setActiveConversationId(response.conversationId);
+        loadConversations(); // Refresh conversations list
+      }
 
-**🎯 Các task được đề xuất:**
-${analysis.tasks.map((task: any, index: number) => 
-  `${index + 1}. **${task.title}** (${task.priority === 3 ? 'Cao' : task.priority === 2 ? 'Trung bình' : 'Thấp'}) - ${task.estimatedPomodoros} Pomodoro\n   ${task.description}`
-).join('\n')}
-
-**💡 Điểm quan trọng:**
-${analysis.keyPoints.map((point: string) => `• ${point}`).join('\n')}
-
-Bạn có muốn tôi tạo dự án và các task này không?`,
-            timestamp: new Date(),
-            type: 'project',
-            data: analysis
-          };
-          setMessages(prev => [...prev, botMessage]);
-
-          // Add to whiteboard
-          addToWhiteboard({
-            type: 'project',
-            title: analysis.projectName,
-            description: analysis.description,
-            status: 'pending'
-          });
-        }
-      } else if (text.toLowerCase().includes('tạo dự án')) {
-        // Handle project creation from analysis
-        const lastProjectMessage = messages.findLast(m => m.type === 'project');
-        if (lastProjectMessage?.data) {
-          try {
-            const project = await createProject(lastProjectMessage.data.projectName);
-            
-            // Create tasks
-            const createdTasks = [];
-            for (const taskData of lastProjectMessage.data.tasks) {
-              const task = await createTask({
-                projectId: project._id,
-                title: taskData.title,
-                description: taskData.description,
-                priority: taskData.priority,
-                estimatedPomodoros: taskData.estimatedPomodoros
-              });
-              createdTasks.push(task);
-            }
-
-            const botMessage: Message = {
-              from: 'bot',
-              text: `✅ **Dự án đã được tạo thành công!**
-
-📋 **${project.name}** với ${createdTasks.length} tasks
-🎯 Bạn có thể bắt đầu làm việc ngay bây giờ!
-
-Chuyển đến trang dự án để xem chi tiết?`,
-              timestamp: new Date(),
-              type: 'task'
-            };
-            setMessages(prev => [...prev, botMessage]);
-
-            // Update whiteboard
-            updateWhiteboardItem(
-              whiteboardItems.find(item => item.title === project.name)?.id || '',
-              { status: 'confirmed' }
-            );
-
-            // Refresh data
-            loadData();
-          } catch (error) {
-            const errorMessage: Message = {
-              from: 'bot',
-              text: '❌ Có lỗi xảy ra khi tạo dự án. Vui lòng thử lại!',
-              timestamp: new Date()
-            };
-            setMessages(prev => [...prev, errorMessage]);
-          }
-        }
-      } else {
-        // General AI chat
-        const context = `
-Bạn là AI Agent trợ lý quản lý công việc thông minh. Hãy trả lời câu hỏi sau một cách hữu ích và thân thiện.
-
-Dữ liệu hiện tại:
-- Số dự án: ${projects.length}
-- Số task: ${tasks.length}
-- Task hoàn thành: ${tasks.filter(t => t.status === 'done').length}
-
-Câu hỏi: ${text}
-`;
-
-        const response = await postAIChat({
-          model: 'gemini-2.0-flash',
-          contents: context
+      // Add to whiteboard if it's a project analysis
+      if (response.type === 'project' && response.data) {
+        addToWhiteboard({
+          type: 'project',
+          title: response.data.projectName,
+          description: response.data.description,
+          status: 'pending'
         });
+      }
 
-        const botMessage: Message = {
-          from: 'bot',
-          text: response.text,
-          timestamp: new Date()
-        };
-        setMessages(prev => [...prev, botMessage]);
+      // Refresh data if project/task was created
+      if (response.type === 'task') {
+        loadData();
       }
     } catch (error) {
-      const errorMessage: Message = {
-        from: 'bot',
-        text: '❌ Xin lỗi, có lỗi xảy ra. Vui lòng thử lại!',
-        timestamp: new Date()
+      const errMsg: Message = { 
+        from: 'bot', 
+        text: '❌ Có lỗi xảy ra. Vui lòng thử lại!', 
+        timestamp: new Date() 
       };
-      setMessages(prev => [...prev, errorMessage]);
+      setMessages(prev => [...prev, errMsg]);
     } finally {
       setIsLoading(false);
     }
   };
 
   const renderChatTab = () => (
-    <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map((message, index) => (
-          <div key={index} className={`flex ${message.from === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[80%] p-4 rounded-2xl ${
-              message.from === 'user' 
-                ? 'bg-blue-500 text-white' 
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100'
-            }`}>
-              <div className="whitespace-pre-wrap">{message.text}</div>
-              {message.type === 'project' && message.data && (
-                <button
-                  onClick={() => sendMessage()}
-                  className="mt-3 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
-                >
-                  ✅ Tạo dự án này
-                </button>
-              )}
-              <div className="text-xs opacity-70 mt-2">
-                {message.timestamp.toLocaleTimeString()}
-              </div>
-            </div>
-          </div>
-        ))}
-        {isLoading && (
-          <div className="flex justify-start">
-            <div className="bg-gray-100 dark:bg-gray-700 p-4 rounded-2xl">
-              <div className="flex space-x-2">
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-              </div>
-            </div>
-          </div>
-        )}
-        <div ref={endRef} />
-      </div>
-      
-      <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-        <div className="flex space-x-2">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-            placeholder="Mô tả công việc hoặc đặt câu hỏi..."
-            className="flex-1 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={isLoading}
-          />
+    <div className="flex h-full">
+      {/* Conversations Sidebar */}
+      <div className="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col">
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
           <button
-            onClick={sendMessage}
-            disabled={isLoading || !input.trim()}
-            className="px-6 py-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            onClick={createNewConversation}
+            className="w-full flex items-center space-x-2 px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
           >
-            Gửi
+            <AiOutlinePlus className="w-4 h-4" />
+            <span>Cuộc trò chuyện mới</span>
           </button>
+        </div>
+        
+        <div className="flex-1 overflow-y-auto">
+          {conversations.map((conv) => (
+            <div
+              key={conv._id}
+              className={`group flex items-center justify-between p-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 ${
+                conv._id === activeConversationId ? 'bg-blue-50 dark:bg-blue-900/20 border-r-2 border-blue-500' : ''
+              }`}
+              onClick={() => switchConversation(conv._id)}
+            >
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                  {conv.title}
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {new Date(conv.updatedAt).toLocaleDateString()}
+                </p>
+              </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeleteConversation(conv._id);
+                }}
+                className="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:text-red-700 transition-all"
+              >
+                <AiOutlineDelete className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Chat Area */}
+      <div className="flex-1 flex flex-col">
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {messages.map((message, index) => (
+            <div key={index} className={`flex ${message.from === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div className={`max-w-[80%] p-4 rounded-2xl ${
+                message.from === 'user' 
+                  ? 'bg-blue-500 text-white' 
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100'
+              }`}>
+                <div className="whitespace-pre-wrap">{message.text}</div>
+                {message.type === 'project' && message.data && (
+                  <button
+                    onClick={() => {
+                      setInput('Có, tạo dự án');
+                      sendMessage();
+                    }}
+                    className="mt-3 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+                  >
+                    ✅ Tạo dự án này
+                  </button>
+                )}
+                <div className="text-xs opacity-70 mt-2">
+                  {new Date(message.timestamp).toLocaleTimeString()}
+                </div>
+              </div>
+            </div>
+          ))}
+          {isLoading && (
+            <div className="flex justify-start">
+              <div className="bg-gray-100 dark:bg-gray-700 p-4 rounded-2xl">
+                <div className="flex space-x-2">
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                </div>
+              </div>
+            </div>
+          )}
+          <div ref={endRef} />
+        </div>
+        
+        <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex space-x-2">
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+              placeholder="Mô tả công việc hoặc đặt câu hỏi..."
+              className="flex-1 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={isLoading}
+            />
+            <button
+              onClick={sendMessage}
+              disabled={isLoading || !input.trim()}
+              className="px-6 py-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              Gửi
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -464,7 +401,7 @@ Câu hỏi: ${text}
             
             <div className="flex items-center justify-between">
               <span className="text-xs text-gray-500">
-                {item.createdAt.toLocaleDateString()}
+                {new Date(item.createdAt).toLocaleDateString()}
               </span>
               <select
                 value={item.status}

@@ -1,13 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { postAIChat, AIChatResponse, AIChatRequest, createTask, getProjects, getTasks, getSuggestions, Project, Task } from '../services/api';
+import { postAIChat, AIChatResponse, AIChatRequest, getConversations, createConversation, activateConversation, Conversation, Message } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import { AiOutlineMessage, AiOutlineClose, AiOutlineExpandAlt, AiOutlineBulb } from 'react-icons/ai';
-
-interface Message {
-  from: 'user' | 'bot';
-  text: string;
-  timestamp: Date;
-}
 
 interface ChatWidgetProps {
   fullPage?: boolean;
@@ -18,9 +12,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [initialized, setInitialized] = useState(false);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [activeConversationId, setActiveConversationId] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -28,21 +21,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
     const newOpenState = !open;
     setOpen(newOpenState);
     
-    if (newOpenState && !initialized) {
-      setInitialized(true);
-      setMessages([
-        { 
-          from: 'bot', 
-          text: '🎯 Xin chào! Tôi là AI Agent - trợ lý quản lý công việc của bạn.\n\n' +
-                '💡 **Tính năng nổi bật:**\n' +
-                '• Phân tích mô tả công việc tự động\n' +
-                '• Tạo dự án và task thông minh\n' +
-                '• Whiteboard ghi nhớ ý tưởng\n' +
-                '• Phân tích hiệu suất làm việc\n\n' +
-                '📝 Hãy mô tả công việc bạn muốn thực hiện hoặc đặt câu hỏi!',
-          timestamp: new Date()
-        }
-      ]);
+    if (newOpenState) {
+      loadConversations();
     }
   };
 
@@ -52,12 +32,54 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  useEffect(() => {
-    if (open) {
-      getProjects().then(setProjects).catch(() => {});
-      getTasks().then(setTasks).catch(() => {});
+  const loadConversations = async () => {
+    try {
+      const convs = await getConversations();
+      setConversations(convs);
+      
+      // Find active conversation or create new one
+      const activeConv = convs.find(c => c.isActive);
+      if (activeConv) {
+        setActiveConversationId(activeConv._id);
+        setMessages(activeConv.messages);
+      } else if (convs.length === 0) {
+        // Create first conversation
+        const newConv = await createConversation();
+        setConversations([newConv]);
+        setActiveConversationId(newConv._id);
+        setMessages(newConv.messages);
+      }
+    } catch (error) {
+      console.error('Failed to load conversations:', error);
     }
-  }, [open]);
+  };
+
+  const switchConversation = async (conversationId: string) => {
+    try {
+      const conv = await activateConversation(conversationId);
+      setActiveConversationId(conversationId);
+      setMessages(conv.messages);
+      
+      // Update conversations list
+      setConversations(prev => prev.map(c => ({
+        ...c,
+        isActive: c._id === conversationId
+      })));
+    } catch (error) {
+      console.error('Failed to switch conversation:', error);
+    }
+  };
+
+  const createNewConversation = async () => {
+    try {
+      const newConv = await createConversation(`Cuộc trò chuyện ${new Date().toLocaleDateString()}`);
+      setConversations(prev => [newConv, ...prev.map(c => ({ ...c, isActive: false }))]);
+      setActiveConversationId(newConv._id);
+      setMessages(newConv.messages);
+    } catch (error) {
+      console.error('Failed to create conversation:', error);
+    }
+  };
 
   const sendMessage = async () => {
     const text = input.trim();
@@ -69,102 +91,26 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
     setIsLoading(true);
 
     try {
-      // Quick responses for common patterns
-      if (/^(tạo|thêm) (?:task|công việc)/i.test(text) && projects.length > 0) {
-        const title = text.replace(/^(tạo|thêm) (?:task|công việc)\s+/i, '');
-        try {
-          const task = await createTask({ title, projectId: projects[0]._id });
-          const botMsg: Message = { 
-            from: 'bot', 
-            text: `✅ Đã tạo task: "${task.title}"\n\n🚀 Bạn có thể bắt đầu làm việc ngay!`, 
-            timestamp: new Date() 
-          };
-          setMessages(prev => [...prev, botMsg]);
-          getTasks().then(setTasks).catch(() => {});
-        } catch {
-          const errMsg: Message = { 
-            from: 'bot', 
-            text: '❌ Không thể tạo task. Vui lòng thử lại!', 
-            timestamp: new Date() 
-          };
-          setMessages(prev => [...prev, errMsg]);
-        }
-        setIsLoading(false);
-        return;
-      }
-
-      if (/^(tìm|search)/i.test(text)) {
-        const keyword = text.replace(/^(tìm|search)\s+/i, '').toLowerCase();
-        const foundTasks = tasks.filter(t => 
-          t.title.toLowerCase().includes(keyword) || 
-          (t.description && t.description.toLowerCase().includes(keyword))
-        );
-        
-        const resultText = foundTasks.length > 0 
-          ? `🔍 **Tìm thấy ${foundTasks.length} task:**\n\n` + 
-            foundTasks.slice(0, 5).map(t => 
-              `• ${t.title} ${t.status ? `(${t.status})` : ''}`
-            ).join('\n')
-          : `🔍 Không tìm thấy task nào với từ khóa "${keyword}"`;
-        
-        const botMsg: Message = { from: 'bot', text: resultText, timestamp: new Date() };
-        setMessages(prev => [...prev, botMsg]);
-        setIsLoading(false);
-        return;
-      }
-
-      if (/^(gợi ý|đề xuất|priority)/i.test(text)) {
-        try {
-          const { tasks: prioritizedTasks } = await getSuggestions();
-          
-          const resultText = prioritizedTasks.length > 0 
-            ? `🎯 **Đề xuất ưu tiên:**\n\n` +
-              prioritizedTasks.slice(0, 3).map((task, index) => 
-                `${index + 1}. ${task.title} ${task.deadline ? `⏰ ${new Date(task.deadline).toLocaleDateString()}` : ''}`
-              ).join('\n') +
-              `\n\n💡 Bạn nên tập trung vào "${prioritizedTasks[0].title}" trước!`
-            : '📝 Chưa có task nào để đề xuất. Hãy tạo task mới!';
-          
-          const botMsg: Message = { from: 'bot', text: resultText, timestamp: new Date() };
-          setMessages(prev => [...prev, botMsg]);
-        } catch (error) {
-          const botMsg: Message = { 
-            from: 'bot', 
-            text: '❌ Không thể lấy gợi ý. Vui lòng thử lại!', 
-            timestamp: new Date() 
-          };
-          setMessages(prev => [...prev, botMsg]);
-        }
-        setIsLoading(false);
-        return;
-      }
-
-      // General AI chat with enhanced context
-      const context = `
-Bạn là AI Agent trợ lý quản lý công việc thông minh. Trả lời ngắn gọn, hữu ích và thân thiện.
-
-Dữ liệu người dùng:
-- Dự án: ${projects.length} (${projects.filter(p => !p.completed).length} đang thực hiện)
-- Task: ${tasks.length} (${tasks.filter(t => t.status === 'done').length} hoàn thành)
-
-Khả năng chính:
-- Phân tích mô tả công việc và tạo dự án/task
-- Gợi ý ưu tiên công việc
-- Theo dõi tiến độ và động viên
-
-Câu hỏi: ${text}
-
-Gợi ý: Nếu người dùng mô tả công việc phức tạp, hãy đề xuất họ sử dụng tính năng "Mở rộng" để phân tích chi tiết hơn.
-`;
-
-      const res: AIChatResponse = await postAIChat({ 
-        model: 'gemini-2.0-flash', 
-        contents: context 
+      const response: AIChatResponse = await postAIChat({ 
+        message: text,
+        conversationId: activeConversationId
       });
       
-      const botMsg: Message = { from: 'bot', text: res.text, timestamp: new Date() };
+      const botMsg: Message = { 
+        from: 'bot', 
+        text: response.message, 
+        timestamp: new Date(),
+        type: response.type as any,
+        data: response.data
+      };
       setMessages(prev => [...prev, botMsg]);
-    } catch {
+
+      // Update conversation ID if it changed (new conversation)
+      if (response.conversationId !== activeConversationId) {
+        setActiveConversationId(response.conversationId);
+        loadConversations(); // Refresh conversations list
+      }
+    } catch (error) {
       const errMsg: Message = { 
         from: 'bot', 
         text: '❌ Có lỗi xảy ra. Vui lòng thử lại!', 
@@ -202,6 +148,23 @@ Gợi ý: Nếu người dùng mô tả công việc phức tạp, hãy đề xu
           </button>
         </div>
       </div>
+
+      {/* Conversation selector */}
+      {conversations.length > 1 && (
+        <div className="p-2 border-b border-gray-200 dark:border-gray-700">
+          <select
+            value={activeConversationId}
+            onChange={(e) => switchConversation(e.target.value)}
+            className="w-full text-xs px-2 py-1 border rounded bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+          >
+            {conversations.map(conv => (
+              <option key={conv._id} value={conv._id}>
+                {conv.title}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       
       <div className="flex-1 p-3 overflow-y-auto space-y-3">
         {messages.map((m, i) => (
@@ -212,8 +175,19 @@ Gợi ý: Nếu người dùng mô tả công việc phức tạp, hãy đề xu
                 : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200'
             }`}>
               <div className="whitespace-pre-wrap">{m.text}</div>
+              {m.type === 'project' && m.data && (
+                <button
+                  onClick={() => {
+                    setInput('Có, tạo dự án');
+                    sendMessage();
+                  }}
+                  className="mt-2 px-3 py-1 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-xs"
+                >
+                  ✅ Tạo dự án này
+                </button>
+              )}
               <div className="text-xs opacity-70 mt-1">
-                {m.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                {new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </div>
             </div>
           </div>
@@ -234,7 +208,7 @@ Gợi ý: Nếu người dùng mô tả công việc phức tạp, hãy đề xu
       </div>
       
       <div className="p-3 border-t border-gray-200 dark:border-gray-700">
-        <div className="flex space-x-2">
+        <div className="flex space-x-2 mb-2">
           <input
             className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-500 dark:placeholder-gray-400"
             value={input}
@@ -252,16 +226,22 @@ Gợi ý: Nếu người dùng mô tả công việc phức tạp, hãy đề xu
           </button>
         </div>
         
-        {!fullPage && (
-          <div className="mt-2 text-center">
+        <div className="flex justify-between items-center">
+          <button
+            onClick={createNewConversation}
+            className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+          >
+            + Cuộc trò chuyện mới
+          </button>
+          {!fullPage && (
             <button
               onClick={expandChat}
               className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
             >
-              🚀 Mở rộng để trải nghiệm đầy đủ
+              🚀 Mở rộng
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );

@@ -5,6 +5,7 @@ import cors from 'cors';
 import { TaskModel } from './models/task';
 import { SessionModel } from './models/session';
 import { ConfigModel } from './models/config';
+import { ConversationModel } from './models/conversation';
 import { setupAuthRoutes, authenticateToken } from './auth';
 import { ProjectModel } from './models/project';
 import { chat } from './services/geminiService';
@@ -24,16 +25,331 @@ export function setupAPI() {
   app.use('/api/sessions', authenticateToken);
   app.use('/api/config', authenticateToken);
   app.use('/api/projects', authenticateToken);
+  app.use('/api/conversations', authenticateToken);
 
-  // AI chat endpoint
+  // Conversation APIs
+  app.get('/api/conversations', async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const conversations = await ConversationModel.find({ userId }).sort({ updatedAt: -1 });
+      res.json(conversations);
+    } catch (error) {
+      console.error('Error fetching conversations:', error);
+      res.status(500).json({ message: 'Failed to fetch conversations' });
+    }
+  });
+
+  app.post('/api/conversations', async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const { title } = req.body;
+      
+      // Deactivate other conversations
+      await ConversationModel.updateMany({ userId }, { isActive: false });
+      
+      const conversation = new ConversationModel({
+        userId,
+        title: title || `Cuộc trò chuyện ${new Date().toLocaleDateString()}`,
+        messages: [{
+          from: 'bot',
+          text: `🎯 Chào mừng bạn đến với AI Agent - Trợ lý quản lý công việc thông minh!
+
+Tôi có thể giúp bạn:
+📋 **Quản lý dự án & công việc**
+• Phân tích mô tả công việc và tạo dự án
+• Chia nhỏ dự án thành các task cụ thể
+• Theo dõi tiến độ và đưa ra gợi ý
+
+🎨 **Whiteboard thông minh**
+• Ghi nhớ các quyết định quan trọng
+• Lưu trữ ý tưởng và kế hoạch
+• Theo dõi các mục tiêu đã đặt ra
+
+📊 **Phân tích & động viên**
+• Đánh giá hiệu suất làm việc
+• Đưa ra lời khuyên cải thiện
+• Động viên khi hoàn thành mục tiêu
+
+Hãy bắt đầu bằng cách mô tả công việc hoặc dự án bạn muốn thực hiện!`,
+          timestamp: new Date(),
+          type: 'text'
+        }],
+        isActive: true
+      });
+      
+      await conversation.save();
+      res.json(conversation);
+    } catch (error) {
+      console.error('Error creating conversation:', error);
+      res.status(500).json({ message: 'Failed to create conversation' });
+    }
+  });
+
+  app.get('/api/conversations/:id', async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const conversation = await ConversationModel.findOne({ _id: req.params.id, userId });
+      if (!conversation) {
+        return res.status(404).json({ message: 'Conversation not found' });
+      }
+      res.json(conversation);
+    } catch (error) {
+      console.error('Error fetching conversation:', error);
+      res.status(500).json({ message: 'Failed to fetch conversation' });
+    }
+  });
+
+  app.put('/api/conversations/:id/activate', async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      
+      // Deactivate all conversations
+      await ConversationModel.updateMany({ userId }, { isActive: false });
+      
+      // Activate selected conversation
+      const conversation = await ConversationModel.findOneAndUpdate(
+        { _id: req.params.id, userId },
+        { isActive: true, updatedAt: new Date() },
+        { new: true }
+      );
+      
+      if (!conversation) {
+        return res.status(404).json({ message: 'Conversation not found' });
+      }
+      
+      res.json(conversation);
+    } catch (error) {
+      console.error('Error activating conversation:', error);
+      res.status(500).json({ message: 'Failed to activate conversation' });
+    }
+  });
+
+  app.delete('/api/conversations/:id', async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const conversation = await ConversationModel.findOneAndDelete({ _id: req.params.id, userId });
+      if (!conversation) {
+        return res.status(404).json({ message: 'Conversation not found' });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting conversation:', error);
+      res.status(500).json({ message: 'Failed to delete conversation' });
+    }
+  });
+
+  // AI chat endpoint with conversation context
   app.post('/api/ai/chat', authenticateToken, async (req, res) => {
     try {
-      const { model, contents, generationConfig } = req.body;
-      const result = await chat({ model, contents, generationConfig });
-      res.json(result);
+      const userId = (req as any).userId;
+      const { message, conversationId } = req.body;
+
+      // Get or create active conversation
+      let conversation;
+      if (conversationId) {
+        conversation = await ConversationModel.findOne({ _id: conversationId, userId });
+      } else {
+        conversation = await ConversationModel.findOne({ userId, isActive: true });
+      }
+
+      if (!conversation) {
+        // Create new conversation
+        conversation = new ConversationModel({
+          userId,
+          title: `Cuộc trò chuyện ${new Date().toLocaleDateString()}`,
+          messages: [],
+          isActive: true
+        });
+      }
+
+      // Add user message
+      conversation.messages.push({
+        from: 'user',
+        text: message,
+        timestamp: new Date(),
+        type: 'text'
+      });
+
+      // Get context from conversation history
+      const conversationHistory = conversation.messages.slice(-10).map(m => 
+        `${m.from === 'user' ? 'User' : 'AI'}: ${m.text}`
+      ).join('\n');
+
+      // Get user data for context
+      const [projects, tasks, sessions] = await Promise.all([
+        ProjectModel.find({ userId }),
+        TaskModel.find({ userId }),
+        SessionModel.find({ userId })
+      ]);
+
+      let botResponse = '';
+      let responseType = 'text';
+      let responseData = null;
+
+      // Check for project creation intent
+      if (message.toLowerCase().includes('tạo dự án') || 
+          message.toLowerCase().includes('phân tích') && message.toLowerCase().includes('dự án')) {
+        
+        const analysisPrompt = `
+Phân tích mô tả công việc sau và tạo cấu trúc dự án chi tiết:
+"${message}"
+
+Lịch sử cuộc trò chuyện:
+${conversationHistory}
+
+Hãy trả về JSON với format chính xác:
+{
+  "projectName": "Tên dự án cụ thể",
+  "description": "Mô tả chi tiết dự án",
+  "tasks": [
+    {
+      "title": "Tên task cụ thể",
+      "description": "Mô tả chi tiết task",
+      "priority": 1-3,
+      "estimatedPomodoros": 1-10
+    }
+  ],
+  "timeline": "Thời gian dự kiến",
+  "keyPoints": ["Điểm quan trọng 1", "Điểm quan trọng 2"]
+}
+
+Chỉ trả về JSON, không thêm text khác.
+`;
+
+        try {
+          const aiResponse = await chat({
+            model: 'gemini-2.0-flash',
+            contents: analysisPrompt
+          });
+
+          // Extract JSON from response
+          const jsonMatch = aiResponse.text.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const analysis = JSON.parse(jsonMatch[0]);
+            responseData = analysis;
+            responseType = 'project';
+            
+            botResponse = `🎯 **Phân tích dự án hoàn tất!**
+
+**📋 Dự án:** ${analysis.projectName}
+**📝 Mô tả:** ${analysis.description}
+**⏱️ Thời gian:** ${analysis.timeline}
+
+**🎯 Các task được đề xuất:**
+${analysis.tasks.map((task: any, index: number) => 
+  `${index + 1}. **${task.title}** (${task.priority === 3 ? 'Cao' : task.priority === 2 ? 'Trung bình' : 'Thấp'}) - ${task.estimatedPomodoros} Pomodoro\n   ${task.description}`
+).join('\n')}
+
+**💡 Điểm quan trọng:**
+${analysis.keyPoints.map((point: string) => `• ${point}`).join('\n')}
+
+Bạn có muốn tôi tạo dự án và các task này không? Hãy trả lời "Có, tạo dự án" để xác nhận.`;
+          }
+        } catch (error) {
+          console.error('Analysis failed:', error);
+          botResponse = '❌ Có lỗi xảy ra khi phân tích. Vui lòng mô tả rõ hơn về dự án bạn muốn thực hiện.';
+        }
+      }
+      // Check for project creation confirmation
+      else if ((message.toLowerCase().includes('có') && message.toLowerCase().includes('tạo')) ||
+               message.toLowerCase().includes('xác nhận') ||
+               message.toLowerCase().includes('đồng ý')) {
+        
+        // Find the last project analysis in conversation
+        const lastProjectMessage = conversation.messages.findLast(m => m.type === 'project');
+        if (lastProjectMessage?.data) {
+          try {
+            const analysis = lastProjectMessage.data;
+            
+            // Create project
+            const project = await ProjectModel.create({
+              name: analysis.projectName,
+              userId
+            });
+            
+            // Create tasks
+            const createdTasks = [];
+            for (const taskData of analysis.tasks) {
+              const task = await TaskModel.create({
+                projectId: project._id,
+                title: taskData.title,
+                description: taskData.description,
+                priority: taskData.priority,
+                estimatedPomodoros: taskData.estimatedPomodoros,
+                userId
+              });
+              createdTasks.push(task);
+            }
+
+            responseType = 'task';
+            botResponse = `✅ **Dự án đã được tạo thành công!**
+
+📋 **${project.name}** với ${createdTasks.length} tasks
+🎯 Bạn có thể bắt đầu làm việc ngay bây giờ!
+
+**Các task đã tạo:**
+${createdTasks.map((task, index) => `${index + 1}. ${task.title}`).join('\n')}
+
+Chuyển đến trang dự án để xem chi tiết và bắt đầu làm việc nhé!`;
+          } catch (error) {
+            console.error('Failed to create project:', error);
+            botResponse = '❌ Có lỗi xảy ra khi tạo dự án. Vui lòng thử lại!';
+          }
+        } else {
+          botResponse = '❌ Không tìm thấy thông tin dự án để tạo. Vui lòng mô tả lại dự án bạn muốn thực hiện.';
+        }
+      }
+      // General AI chat with full context
+      else {
+        const contextPrompt = `
+Bạn là AI Agent trợ lý quản lý công việc thông minh. Hãy trả lời câu hỏi dựa trên context đầy đủ.
+
+Lịch sử cuộc trò chuyện:
+${conversationHistory}
+
+Dữ liệu người dùng hiện tại:
+- Số dự án: ${projects.length} (${projects.filter(p => !p.completed).length} đang thực hiện)
+- Số task: ${tasks.length} (${tasks.filter(t => t.status === 'done').length} hoàn thành)
+- Số phiên Pomodoro: ${sessions.filter(s => s.type === 'focus').length}
+
+Tin nhắn mới: ${message}
+
+Hãy trả lời một cách hữu ích, thân thiện và dựa trên context của cuộc trò chuyện. Nếu người dùng muốn tạo dự án hoặc phân tích công việc, hãy hướng dẫn họ mô tả chi tiết hơn.
+`;
+
+        try {
+          const aiResponse = await chat({
+            model: 'gemini-2.0-flash',
+            contents: contextPrompt
+          });
+          botResponse = aiResponse.text;
+        } catch (error) {
+          console.error('AI chat failed:', error);
+          botResponse = '❌ Xin lỗi, có lỗi xảy ra. Vui lòng thử lại!';
+        }
+      }
+
+      // Add bot response to conversation
+      conversation.messages.push({
+        from: 'bot',
+        text: botResponse,
+        timestamp: new Date(),
+        type: responseType as any,
+        data: responseData
+      });
+
+      conversation.updatedAt = new Date();
+      await conversation.save();
+
+      res.json({
+        message: botResponse,
+        type: responseType,
+        data: responseData,
+        conversationId: conversation._id
+      });
     } catch (error) {
-      console.error('Error chatting with AI:', error);
-      res.status(500).json({ message: 'Failed to chat with AI' });
+      console.error('Error in AI chat:', error);
+      res.status(500).json({ message: 'Failed to process chat' });
     }
   });
 

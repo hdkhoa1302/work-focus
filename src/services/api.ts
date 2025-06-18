@@ -35,6 +35,49 @@ export interface Session {
   duration?: number;
 }
 
+export interface Message {
+  from: 'user' | 'bot';
+  text: string;
+  timestamp: Date;
+  type?: 'text' | 'project' | 'task' | 'analysis' | 'encouragement';
+  data?: any;
+}
+
+export interface Conversation {
+  _id: string;
+  userId: string;
+  title: string;
+  messages: Message[];
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Conversation APIs
+export const getConversations = async (): Promise<Conversation[]> => {
+  const resp = await api.get<Conversation[]>('/api/conversations');
+  return resp.data;
+};
+
+export const createConversation = async (title?: string): Promise<Conversation> => {
+  const resp = await api.post<Conversation>('/api/conversations', { title });
+  return resp.data;
+};
+
+export const getConversation = async (id: string): Promise<Conversation> => {
+  const resp = await api.get<Conversation>(`/api/conversations/${id}`);
+  return resp.data;
+};
+
+export const activateConversation = async (id: string): Promise<Conversation> => {
+  const resp = await api.put<Conversation>(`/api/conversations/${id}/activate`);
+  return resp.data;
+};
+
+export const deleteConversation = async (id: string): Promise<void> => {
+  await api.delete(`/api/conversations/${id}`);
+};
+
 export const getTasks = async (projectId?: string): Promise<Task[]> => {
   const resp = await api.get<Task[]>('/api/tasks', { params: projectId ? { projectId } : {} });
   return resp.data;
@@ -109,18 +152,17 @@ export const deleteProject = async (id: string): Promise<void> => {
 
 // Interfaces và API cho AI chat
 export interface AIChatRequest {
-  model: string;
-  contents: string;
-  generationConfig?: {
-    temperature?: number;
-    candidateCount?: number;
-    topP?: number;
-    topK?: number;
-  };
+  message: string;
+  conversationId?: string;
 }
+
 export interface AIChatResponse {
-  text: string;
+  message: string;
+  type: string;
+  data?: any;
+  conversationId: string;
 }
+
 export const postAIChat = async (payload: AIChatRequest): Promise<AIChatResponse> => {
   const resp = await api.post<AIChatResponse>('/api/ai/chat', payload);
   return resp.data;

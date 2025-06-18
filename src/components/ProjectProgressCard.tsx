@@ -7,9 +7,11 @@ import {
   AiOutlineFire,
   AiOutlineCalendar,
   AiOutlineArrowUp,
-  AiOutlineArrowDown
+  AiOutlineArrowDown,
+  AiOutlineClose
 } from 'react-icons/ai';
 import { FiAlertTriangle, FiClock, FiTarget, FiTrendingUp } from 'react-icons/fi';
+import OvertimeWarningModal from './OvertimeWarningModal';
 
 interface ProjectProgressCardProps {
   projectId: string;
@@ -20,10 +22,24 @@ const ProjectProgressCard: React.FC<ProjectProgressCardProps> = ({ projectId, on
   const [analysis, setAnalysis] = useState<ProjectProgressAnalysis | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showOvertimeWarning, setShowOvertimeWarning] = useState(false);
+  const [acknowledgedOT, setAcknowledgedOT] = useState(false);
 
   useEffect(() => {
     fetchAnalysis();
   }, [projectId]);
+
+  // Check if we should show OT warning
+  useEffect(() => {
+    if (analysis && analysis.analysis.overtimeRequired > 0 && !acknowledgedOT) {
+      // Only show after a short delay
+      const timer = setTimeout(() => {
+        setShowOvertimeWarning(true);
+      }, 1000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [analysis, acknowledgedOT]);
 
   const fetchAnalysis = async () => {
     try {
@@ -92,6 +108,11 @@ const ProjectProgressCard: React.FC<ProjectProgressCardProps> = ({ projectId, on
     }
   };
 
+  const handleOvertimeWarningClose = () => {
+    setShowOvertimeWarning(false);
+    setAcknowledgedOT(true);
+  };
+
   if (isLoading) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
@@ -143,7 +164,7 @@ const ProjectProgressCard: React.FC<ProjectProgressCardProps> = ({ projectId, on
             onClick={onClose}
             className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
           >
-            <AiOutlineClockCircle className="w-5 h-5 text-gray-500" />
+            <AiOutlineClose className="w-5 h-5 text-gray-500" />
           </button>
         )}
       </div>
@@ -156,6 +177,9 @@ const ProjectProgressCard: React.FC<ProjectProgressCardProps> = ({ projectId, on
           <p className="text-sm opacity-90">
             {projectAnalysis.isOnTrack ? 'Dự án đang tiến triển đúng kế hoạch' : 'Dự án có nguy cơ trễ deadline'}
           </p>
+          {acknowledgedOT && projectAnalysis.overtimeRequired > 0 && (
+            <p className="text-xs mt-1 italic">Đã xác nhận cần OT</p>
+          )}
         </div>
       </div>
 
@@ -267,6 +291,9 @@ const ProjectProgressCard: React.FC<ProjectProgressCardProps> = ({ projectId, on
             {projectAnalysis.overtimeRequired > 0 && (
               <div className="text-xs text-red-600 dark:text-red-400 mt-1">
                 Cần làm thêm giờ để kịp deadline
+                {acknowledgedOT && (
+                  <span className="ml-1 italic">- Đã xác nhận</span>
+                )}
               </div>
             )}
           </div>
@@ -283,6 +310,19 @@ const ProjectProgressCard: React.FC<ProjectProgressCardProps> = ({ projectId, on
           </div>
         ))}
       </div>
+
+      {/* OT Warning Modal */}
+      {showOvertimeWarning && projectAnalysis.overtimeRequired > 0 && (
+        <OvertimeWarningModal
+          isOpen={showOvertimeWarning}
+          onClose={handleOvertimeWarningClose}
+          overtimeHours={projectAnalysis.overtimeRequired}
+          projectName={project.name}
+          daysOverdue={project.deadline && new Date(project.deadline) < new Date() ? 
+            Math.floor((new Date().getTime() - new Date(project.deadline).getTime()) / (1000 * 60 * 60 * 24)) : 0}
+          deadlineDate={project.deadline}
+        />
+      )}
     </div>
   );
 };

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Task, Project, getDailyTasks, DailyTasksResponse, getConfig, Config } from '../services/api';
+import { Task, Project, getDailyTasks, DailyTasksResponse, getConfig, Config, calculateDailyWorkload } from '../services/api';
 import { 
   AiOutlineCalendar, 
   AiOutlineClockCircle, 
@@ -13,6 +13,7 @@ import {
   AiOutlineInfoCircle
 } from 'react-icons/ai';
 import { FiClock, FiTarget, FiCheckCircle, FiPlay, FiAlertTriangle } from 'react-icons/fi';
+import OvertimeWarningModal from './OvertimeWarningModal';
 
 interface DailyTaskListProps {
   onTaskSelect?: (task: Task) => void;
@@ -36,10 +37,15 @@ const DailyTaskList: React.FC<DailyTaskListProps> = ({ onTaskSelect, onStartTask
     requiredMinutes: 0,
     overloadedMinutes: 0
   });
+  const [showWorkloadWarning, setShowWorkloadWarning] = useState(false);
+  const [acknowledgedWorkload, setAcknowledgedWorkload] = useState(false);
 
   useEffect(() => {
     fetchDailyTasks(currentDate);
     fetchConfig();
+    
+    // Reset acknowledgment when date changes
+    setAcknowledgedWorkload(false);
   }, [currentDate]);
 
   useEffect(() => {
@@ -47,6 +53,18 @@ const DailyTaskList: React.FC<DailyTaskListProps> = ({ onTaskSelect, onStartTask
       calculateWorkload();
     }
   }, [dailyData, config]);
+
+  // Check if we should show workload warning
+  useEffect(() => {
+    if (workloadStatus.isOverloaded && !acknowledgedWorkload) {
+      // Only show after a short delay to prevent immediate popup
+      const timer = setTimeout(() => {
+        setShowWorkloadWarning(true);
+      }, 1000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [workloadStatus.isOverloaded, acknowledgedWorkload]);
 
   const fetchDailyTasks = async (date: Date) => {
     try {
@@ -74,44 +92,15 @@ const DailyTaskList: React.FC<DailyTaskListProps> = ({ onTaskSelect, onStartTask
   const calculateWorkload = () => {
     if (!dailyData || !config) return;
 
-    // Tính toán thời gian làm việc có sẵn trong ngày
-    const workSchedule = config.workSchedule;
+    // Combine tasks with deadline today and tasks in progress
+    const allTasks = [
+      ...dailyData.tasksWithDeadline,
+      ...dailyData.tasksInProgress
+    ];
     
-    // Chuyển đổi thời gian bắt đầu và kết thúc thành phút
-    const [startHour, startMinute] = workSchedule.startTime.split(':').map(Number);
-    const [endHour, endMinute] = workSchedule.endTime.split(':').map(Number);
-    
-    const startMinutes = startHour * 60 + startMinute;
-    const endMinutes = endHour * 60 + endMinute;
-    
-    // Tính tổng thời gian làm việc trong ngày (trừ giờ nghỉ)
-    const totalWorkMinutes = endMinutes - startMinutes - (workSchedule.breakHours * 60);
-    
-    // Tính tổng thời gian cần thiết cho các task trong ngày
-    let requiredMinutes = 0;
-    
-    // Tính từ các task có deadline hôm nay
-    dailyData.tasksWithDeadline.forEach(task => {
-      // Mỗi pomodoro là 25 phút
-      requiredMinutes += (task.estimatedPomodoros || 1) * 25;
-    });
-    
-    // Tính từ các task đang thực hiện
-    dailyData.tasksInProgress.forEach(task => {
-      // Chỉ tính 50% thời gian cho các task đang thực hiện không có deadline hôm nay
-      requiredMinutes += (task.estimatedPomodoros || 1) * 25 * 0.5;
-    });
-    
-    // Kiểm tra xem có đủ thời gian không
-    const isOverloaded = requiredMinutes > totalWorkMinutes;
-    const overloadedMinutes = Math.max(0, requiredMinutes - totalWorkMinutes);
-    
-    setWorkloadStatus({
-      isOverloaded,
-      availableMinutes: totalWorkMinutes,
-      requiredMinutes,
-      overloadedMinutes
-    });
+    // Calculate workload using the API utility
+    const workload = calculateDailyWorkload(allTasks, config.workSchedule);
+    setWorkloadStatus(workload);
   };
 
   const navigateDate = (direction: 'prev' | 'next') => {
@@ -144,6 +133,11 @@ const DailyTaskList: React.FC<DailyTaskListProps> = ({ onTaskSelect, onStartTask
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
     return `${hours}h${mins > 0 ? ` ${mins}m` : ''}`;
+  };
+
+  const handleWorkloadWarningClose = () => {
+    setShowWorkloadWarning(false);
+    setAcknowledgedWorkload(true);
   };
 
   if (isLoading) {
@@ -237,6 +231,11 @@ const DailyTaskList: React.FC<DailyTaskListProps> = ({ onTaskSelect, onStartTask
               <p className="text-sm text-red-600 dark:text-red-400 mt-1">
                 Thiếu <strong>{formatMinutesToHours(workloadStatus.overloadedMinutes)}</strong> - Cân nhắc sắp xếp lại công việc hoặc làm thêm giờ.
               </p>
+              {acknowledgedWorkload && (
+                <div className="mt-2 text-xs text-red-500 dark:text-red-400 italic">
+                  Đã xác nhận cần OT
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -428,6 +427,17 @@ const DailyTaskList: React.FC<DailyTaskListProps> = ({ onTaskSelect, onStartTask
           </div>
         </div>
       </div>
+
+      {/* Workload Warning Modal */}
+      {showWorkloadWarning && (
+        <OvertimeWarningModal
+          isOpen={showWorkloadWarning}
+          onClose={handleWorkloadWarningClose}
+          overtimeHours={workloadStatus.overloadedMinutes / 60}
+          taskTitle="Công việc trong ngày"
+          daysOverdue={0}
+        />
+      )}
     </div>
   );
 };

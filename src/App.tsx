@@ -10,6 +10,7 @@ import CompactTimerCard from './components/timer/CompactTimerCard';
 import FloatingTimer from './components/timer/FloatingTimer';
 import ChatWidget from './components/ChatWidget';
 import EncouragementModal from './components/EncouragementModal';
+import OvertimeNotificationManager from './components/OvertimeNotificationManager';
 import { AiOutlineMoon, AiOutlineSun, AiOutlineBell, AiOutlineUser, AiOutlineMenu, AiOutlineClose } from 'react-icons/ai';
 import { FiLogOut } from 'react-icons/fi';
 import { getTasks, Task, getEncouragement } from './services/api';
@@ -348,6 +349,9 @@ function AppContent() {
                   taskTitle={completedTask.title}
                 />
               )}
+
+              {/* Overtime Notification Manager */}
+              <OvertimeNotificationManager userId={user.id} />
 
               <ChatWidget />
             </>

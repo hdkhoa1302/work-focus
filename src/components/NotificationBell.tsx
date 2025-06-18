@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { AiOutlineBell, AiOutlineClose, AiOutlineCheck, AiOutlineWarning, AiOutlineCalendar, AiOutlineClockCircle, AiOutlineSetting } from 'react-icons/ai';
+import { AiOutlineBell, AiOutlineClose, AiOutlineCheck, AiOutlineWarning, AiOutlineCalendar, AiOutlineClockCircle, AiOutlineSetting, AiOutlineTrophy } from 'react-icons/ai';
 import { FiAlertTriangle, FiClock, FiSettings } from 'react-icons/fi';
 import { Task, Project, getDailyTasks } from '../services/api';
 import NotificationSettings from './NotificationSettings';
 
 interface Notification {
   id: string;
-  type: 'overdue' | 'upcoming' | 'ot' | 'system' | 'achievement' | 'pomodoroComplete' | 'breakComplete' | 'taskDeadline' | 'projectDeadline' | 'workloadWarning';
+  type: 'overdue' | 'upcoming' | 'ot' | 'system' | 'achievement' | 'pomodoroComplete' | 'breakComplete' | 'taskDeadline' | 'projectDeadline' | 'workloadWarning' | 'inactivityWarning';
   title: string;
   message: string;
   timestamp: Date;
@@ -311,6 +311,8 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ onTaskSelect, onPro
       case 'pomodoroComplete':
       case 'breakComplete':
         return <AiOutlineCheck className="text-green-500" />;
+      case 'inactivityWarning':
+        return <FiClock className="text-amber-500" />;
       default:
         return <AiOutlineBell className="text-gray-500" />;
     }

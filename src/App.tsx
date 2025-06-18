@@ -11,6 +11,7 @@ import FloatingTimer from './components/timer/FloatingTimer';
 import ChatWidget from './components/ChatWidget';
 import EncouragementModal from './components/EncouragementModal';
 import OvertimeNotificationManager from './components/OvertimeNotificationManager';
+import InactivityManager from './components/InactivityManager';
 import { AiOutlineMoon, AiOutlineSun, AiOutlineUser, AiOutlineMenu, AiOutlineClose } from 'react-icons/ai';
 import { FiLogOut } from 'react-icons/fi';
 import { getTasks, Task, getEncouragement } from './services/api';
@@ -51,6 +52,9 @@ function AppContent() {
     if (user) {
       fetchTasks();
       fetchConfig();
+      
+      // Update activity time when user logs in
+      window.ipc?.send('user-activity');
     }
   }, [user]);
 
@@ -67,6 +71,26 @@ function AppContent() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showMobileSidebar]);
+
+  // Track user activity
+  useEffect(() => {
+    if (!user) return;
+    
+    const updateActivity = () => {
+      window.ipc?.send('user-activity');
+    };
+    
+    // Track user activity
+    window.addEventListener('mousemove', updateActivity);
+    window.addEventListener('keydown', updateActivity);
+    window.addEventListener('click', updateActivity);
+    
+    return () => {
+      window.removeEventListener('mousemove', updateActivity);
+      window.removeEventListener('keydown', updateActivity);
+      window.removeEventListener('click', updateActivity);
+    };
+  }, [user]);
 
   const fetchTasks = async () => {
     try {
@@ -96,6 +120,9 @@ function AppContent() {
     setRemaining(duration);
     setIsRunning(true);
     window.ipc?.send('timer-start', { type: 'focus', duration, taskId });
+    
+    // Update activity time when starting a task
+    window.ipc?.send('user-activity');
   };
 
   const handleTimerStart = () => {
@@ -109,6 +136,9 @@ function AppContent() {
       duration: remaining || config[mode] * 60 * 1000,
       taskId: mode === 'focus' ? selectedTaskId : undefined
     });
+    
+    // Update activity time when starting timer
+    window.ipc?.send('user-activity');
   };
 
   const handleTimerPause = () => {
@@ -118,6 +148,9 @@ function AppContent() {
   const handleTimerResume = () => {
     setIsRunning(true);
     window.ipc?.send('timer-resume');
+    
+    // Update activity time when resuming timer
+    window.ipc?.send('user-activity');
   };
 
   // Thêm listener IPC để cập nhật state timer
@@ -132,6 +165,9 @@ function AppContent() {
         setMode('break');
         setRemaining(breakDuration);
       }
+      
+      // Update activity time when timer completes
+      window.ipc?.send('user-activity');
     };
     const onPaused = (_: any, ms: number) => { setIsRunning(false); setRemaining(ms); };
     window.ipc?.on('timer-tick', onTick);
@@ -173,6 +209,9 @@ function AppContent() {
       const detail = (e as CustomEvent).detail;
       setCompletedTask({ id: detail.taskId, title: detail.taskTitle });
       setShowEncouragement(true);
+      
+      // Update activity time when completing a task
+      window.ipc?.send('user-activity');
     };
     window.addEventListener('task-completed', onTaskCompleted);
     return () => {
@@ -189,12 +228,18 @@ function AppContent() {
       window.dispatchEvent(new CustomEvent('view-task-detail', { 
         detail: { taskId }
       }));
+      
+      // Update activity time when selecting a task
+      window.ipc?.send('user-activity');
     }
   };
 
   const handleProjectSelect = (projectId: string) => {
     // Navigate to project page and select the project
     window.location.href = `/projects?id=${projectId}`;
+    
+    // Update activity time when selecting a project
+    window.ipc?.send('user-activity');
   };
 
   if (isLoading) {
@@ -369,6 +414,9 @@ function AppContent() {
 
               {/* Overtime Notification Manager */}
               <OvertimeNotificationManager userId={user.id} />
+              
+              {/* Inactivity Manager */}
+              <InactivityManager userId={user.id} />
 
               <ChatWidget />
             </>

@@ -4,6 +4,7 @@ import { TaskModel } from './models/task';
 import { SessionModel } from './models/session';
 import { ConfigModel } from './models/config';
 import { notificationManager } from './notification';
+import { updateLastActivityTime } from './inactivity';
 
 let interval: NodeJS.Timeout | null = null;
 let startTimestamp = 0;
@@ -156,6 +157,9 @@ export function setupTimer(tray: Tray) {
         updateTray(updatedRemaining);
       }
     }, 1000);
+    
+    // Update activity time when starting a timer
+    updateLastActivityTime();
   });
 
   ipcMain.on('timer-pause', (event) => {
@@ -252,6 +256,9 @@ export function setupTimer(tray: Tray) {
           updateTray(updatedRemaining);
         }
       }, 1000);
+      
+      // Update activity time when resuming a timer
+      updateLastActivityTime();
     }
   });
 }

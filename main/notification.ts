@@ -1,5 +1,6 @@
 import { Notification, nativeImage } from 'electron';
 import * as path from 'path';
+import nodeNotifier from 'node-notifier';
 
 export interface NotificationConfig {
   enabled: boolean;
@@ -14,6 +15,7 @@ export interface NotificationConfig {
     breakComplete: boolean;
     achievement: boolean;
     system: boolean;
+    inactivityWarning: boolean;
   };
   checkInterval: number; // minutes
   quietHours: {
@@ -21,6 +23,7 @@ export interface NotificationConfig {
     start: string; // HH:MM
     end: string; // HH:MM
   };
+  inactivityThreshold: number; // hours
 }
 
 export interface NotificationData {
@@ -47,18 +50,21 @@ class NotificationManager {
       pomodoroComplete: true,
       breakComplete: true,
       achievement: true,
-      system: true
+      system: true,
+      inactivityWarning: true
     },
     checkInterval: 5,
     quietHours: {
       enabled: false,
       start: '22:00',
       end: '08:00'
-    }
+    },
+    inactivityThreshold: 4 // 4 hours
   };
 
   private checkInterval: NodeJS.Timeout | null = null;
   private lastChecks: Record<string, Date> = {};
+  private acknowledgedNotifications: Set<string> = new Set();
 
   constructor() {
     this.loadConfig();
@@ -126,11 +132,16 @@ class NotificationManager {
   public async showNotification(notification: NotificationData): Promise<void> {
     if (!this.shouldShowNotification(notification.type)) return;
 
+    // Check if this notification has been acknowledged
+    if (this.acknowledgedNotifications.has(notification.id)) {
+      return;
+    }
+
     // Add to in-app notification system
     this.addToInAppNotifications(notification);
 
     // Show OS notification if enabled
-    if (this.config.osNotifications && Notification.isSupported()) {
+    if (this.config.osNotifications) {
       await this.showOSNotification(notification);
     }
 
@@ -161,31 +172,58 @@ class NotificationManager {
 
   private async showOSNotification(notification: NotificationData): Promise<void> {
     try {
-      const iconPath = path.join(__dirname, '..', 'assets', 'notification-icon.png');
-      const icon = nativeImage.createFromPath(iconPath);
-      
-      const osNotification = new Notification({
-        title: notification.title,
-        body: notification.body,
-        icon: icon.isEmpty() ? undefined : icon,
-        urgency: this.getOSUrgency(notification.priority),
-        silent: !this.config.sound,
-        timeoutType: notification.priority === 'critical' ? 'never' : 'default'
-      });
+      // Try to use Electron's native notification first
+      if (Notification.isSupported()) {
+        const iconPath = path.join(__dirname, '..', '..', 'assets', 'notification-icon.png');
+        const icon = nativeImage.createFromPath(iconPath);
+        
+        const osNotification = new Notification({
+          title: notification.title,
+          body: notification.body,
+          icon: icon.isEmpty() ? undefined : icon,
+          urgency: this.getOSUrgency(notification.priority),
+          silent: !this.config.sound,
+          timeoutType: notification.priority === 'critical' ? 'never' : 'default'
+        });
 
-      osNotification.on('click', () => {
-        // Focus the main window
-        const mainWindow = require('electron').BrowserWindow.getAllWindows()[0];
-        if (mainWindow) {
-          if (mainWindow.isMinimized()) mainWindow.restore();
-          mainWindow.focus();
+        osNotification.on('click', () => {
+          // Focus the main window
+          const mainWindow = require('electron').BrowserWindow.getAllWindows()[0];
+          if (mainWindow) {
+            if (mainWindow.isMinimized()) mainWindow.restore();
+            mainWindow.focus();
+            
+            // Send click event to renderer
+            mainWindow.webContents.send('notification-clicked', notification);
+          }
+        });
+
+        osNotification.show();
+      } else {
+        // Fallback to node-notifier for cross-platform support
+        nodeNotifier.notify({
+          title: notification.title,
+          message: notification.body,
+          icon: path.join(__dirname, '..', '..', 'assets', 'notification-icon.png'),
+          sound: this.config.sound,
+          wait: true, // Wait for user interaction
+          timeout: notification.priority === 'critical' ? false : 10
+        }, (err, response) => {
+          if (err) console.error('Error showing OS notification:', err);
           
-          // Send click event to renderer
-          mainWindow.webContents.send('notification-clicked', notification);
-        }
-      });
-
-      osNotification.show();
+          // Handle click
+          if (response === 'clicked') {
+            const mainWindow = require('electron').BrowserWindow.getAllWindows()[0];
+            if (mainWindow) {
+              if (mainWindow.isMinimized()) mainWindow.restore();
+              mainWindow.focus();
+              
+              // Send click event to renderer
+              mainWindow.webContents.send('notification-clicked', notification);
+            }
+          }
+        });
+      }
     } catch (error) {
       console.error('Failed to show OS notification:', error);
     }
@@ -255,6 +293,12 @@ class NotificationManager {
         this.lastChecks.workloadWarning = now;
       }
       
+      // Check for inactivity
+      if (this.shouldCheckType('inactivityWarning', now)) {
+        await this.checkInactivity();
+        this.lastChecks.inactivityWarning = now;
+      }
+      
     } catch (error) {
       console.error('Error during periodic notification checks:', error);
     }
@@ -297,6 +341,17 @@ class NotificationManager {
     if (mainWindow) {
       mainWindow.webContents.send('check-workload-warnings');
     }
+  }
+
+  private async checkInactivity() {
+    const mainWindow = require('electron').BrowserWindow.getAllWindows()[0];
+    if (mainWindow) {
+      mainWindow.webContents.send('check-inactivity');
+    }
+  }
+
+  public acknowledgeNotification(notificationId: string) {
+    this.acknowledgedNotifications.add(notificationId);
   }
 
   public destroy() {

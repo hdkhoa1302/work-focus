@@ -6,6 +6,7 @@ import { app, BrowserWindow, Tray, nativeImage, ipcMain } from 'electron';
 import * as path from 'path';
 import { setupTimer } from './timer';
 import { notificationManager } from './notification';
+import { setupInactivityTracker, updateLastActivityTime, setCurrentUser, destroyInactivityTracker } from './inactivity';
 import psList from 'ps-list';
 
 // Load env và khởi DB/API
@@ -73,6 +74,11 @@ function setupNotificationHandlers(win: BrowserWindow) {
     notificationManager.showNotification(notification);
   });
 
+  // Handle notification acknowledgment
+  ipcMain.on('acknowledge-notification', (event, notificationId) => {
+    notificationManager.acknowledgeNotification(notificationId);
+  });
+
   // Handle periodic check triggers from renderer
   ipcMain.on('check-overdue-tasks', async (event) => {
     // This would be implemented to check for overdue tasks
@@ -90,18 +96,35 @@ function setupNotificationHandlers(win: BrowserWindow) {
   ipcMain.on('check-workload-warnings', async (event) => {
     // Check for workload warnings
   });
+
+  ipcMain.on('check-inactivity', async (event) => {
+    // Check for user inactivity
+  });
+
+  // Track user activity
+  ipcMain.on('user-activity', (event) => {
+    updateLastActivityTime();
+  });
 }
 
 app.whenReady().then(() => {
   createWindow();
   createTray();
   setupTimer(tray);
+  setupInactivityTracker();
 });
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     notificationManager.destroy();
+    destroyInactivityTracker();
     app.quit();
+  }
+});
+
+app.on('activate', () => {
+  if (BrowserWindow.getAllWindows().length === 0) {
+    createWindow();
   }
 });
 
@@ -115,4 +138,11 @@ ipcMain.on('get-running-apps', async (event) => {
     console.error('Error fetching running apps:', err);
     event.sender.send('running-apps-response', []);
   }
+});
+
+// Handle user login
+ipcMain.on('user-logged-in', (event, args: { userId: string }) => {
+  currentUserId = args.userId;
+  setCurrentUser(args.userId);
+  updateLastActivityTime();
 });

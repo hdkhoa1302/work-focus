@@ -12,10 +12,13 @@ contextBridge.exposeInMainWorld('ipc', {
       'get-notification-config',
       'update-notification-config',
       'show-notification',
+      'acknowledge-notification',
       'check-overdue-tasks',
       'check-upcoming-deadlines',
       'check-project-deadlines',
-      'check-workload-warnings'
+      'check-workload-warnings',
+      'check-inactivity',
+      'user-activity'
     ];
     if (validChannels.includes(channel)) {
       ipcRenderer.send(channel, data);
@@ -33,7 +36,8 @@ contextBridge.exposeInMainWorld('ipc', {
       'check-overdue-tasks',
       'check-upcoming-deadlines',
       'check-project-deadlines',
-      'check-workload-warnings'
+      'check-workload-warnings',
+      'check-inactivity'
     ];
     if (validChannels.includes(channel)) {
       ipcRenderer.on(channel, listener);
@@ -51,7 +55,8 @@ contextBridge.exposeInMainWorld('ipc', {
       'check-overdue-tasks',
       'check-upcoming-deadlines',
       'check-project-deadlines',
-      'check-workload-warnings'
+      'check-workload-warnings',
+      'check-inactivity'
     ];
     if (validChannels.includes(channel)) {
       ipcRenderer.removeListener(channel, listener);

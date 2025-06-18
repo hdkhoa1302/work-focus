@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { createTask, Task, getProjects, Project } from '../services/api';
 import { AiOutlinePlus, AiOutlineCalendar, AiOutlineFire, AiOutlineClose, AiOutlineTag } from 'react-icons/ai';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 import useLanguage from '../hooks/useLanguage';
 
 interface TaskFormModalProps {
@@ -27,6 +29,22 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSave }
   const [newTag, setNewTag] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Quill modules configuration
+  const modules = {
+    toolbar: [
+      [{ 'header': [1, 2, false] }],
+      ['bold', 'italic', 'underline', 'strike'],
+      [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+      ['link', 'image'],
+      ['clean']
+    ],
+  };
+
+  const formats = [
+    'header', 'bold', 'italic', 'underline', 'strike',
+    'list', 'bullet', 'link', 'image'
+  ];
 
   // Load projects khi modal mở
   useEffect(() => {
@@ -191,13 +209,19 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSave }
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               {t('tasks.description')}
             </label>
-            <textarea
-              value={formData.description}
-              onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-              rows={3}
-              className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 resize-none"
-              placeholder="Add more details about this task..."
-            />
+            <div className="bg-white dark:bg-gray-700 rounded-xl border border-gray-300 dark:border-gray-600 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent transition-all duration-200">
+              <ReactQuill
+                theme="snow"
+                value={formData.description}
+                onChange={(value) => setFormData(prev => ({ ...prev, description: value }))}
+                modules={modules}
+                formats={formats}
+                placeholder="Add more details about this task..."
+                style={{
+                  backgroundColor: 'transparent',
+                }}
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

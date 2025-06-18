@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { createTask, Task, getProjects, Project } from '../services/api';
 import { AiOutlinePlus, AiOutlineCalendar, AiOutlineFire } from 'react-icons/ai';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 import useLanguage from '../hooks/useLanguage';
 
 interface TaskFormProps {
@@ -17,6 +19,22 @@ const TaskForm: React.FC<TaskFormProps> = ({ onSave }) => {
   const [deadline, setDeadline] = useState('');
   const [estimatedPomodoros, setEstimatedPomodoros] = useState(1);
   const [isExpanded, setIsExpanded] = useState(false);
+
+  // Quill modules configuration
+  const modules = {
+    toolbar: [
+      [{ 'header': [1, 2, false] }],
+      ['bold', 'italic', 'underline', 'strike'],
+      [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+      ['link', 'image'],
+      ['clean']
+    ],
+  };
+
+  const formats = [
+    'header', 'bold', 'italic', 'underline', 'strike',
+    'list', 'bullet', 'link', 'image'
+  ];
 
   // Load projects
   useEffect(() => {
@@ -122,13 +140,22 @@ const TaskForm: React.FC<TaskFormProps> = ({ onSave }) => {
         {isExpanded && (
           <>
             <div>
-              <textarea
-                placeholder={t('tasks.description')}
-                value={description}
-                onChange={e => setDescription(e.target.value)}
-                rows={3}
-                className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-3 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 resize-none"
-              />
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                {t('tasks.description')}
+              </label>
+              <div className="bg-white dark:bg-gray-700 rounded-xl border border-gray-300 dark:border-gray-600 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent transition-all duration-200">
+                <ReactQuill
+                  theme="snow"
+                  value={description}
+                  onChange={setDescription}
+                  modules={modules}
+                  formats={formats}
+                  placeholder={t('tasks.description')}
+                  style={{
+                    backgroundColor: 'transparent',
+                  }}
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

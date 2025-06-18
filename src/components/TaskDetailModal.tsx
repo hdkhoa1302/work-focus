@@ -15,6 +15,8 @@ import {
   AiOutlineHistory
 } from 'react-icons/ai';
 import { FiPlay, FiClock, FiTrendingUp } from 'react-icons/fi';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 
 interface TaskDetailModalProps {
   task: Task;
@@ -39,6 +41,22 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const [projects, setProjects] = useState<Project[]>([]);
   const [newTag, setNewTag] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  // Quill modules configuration
+  const modules = {
+    toolbar: [
+      [{ 'header': [1, 2, false] }],
+      ['bold', 'italic', 'underline', 'strike'],
+      [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+      ['link', 'image'],
+      ['clean']
+    ],
+  };
+
+  const formats = [
+    'header', 'bold', 'italic', 'underline', 'strike',
+    'list', 'bullet', 'link', 'image'
+  ];
 
   useEffect(() => {
     if (isOpen && task) {
@@ -224,17 +242,27 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                   Mô tả
                 </label>
                 {isEditing ? (
-                  <textarea
-                    value={editData.description || ''}
-                    onChange={(e) => setEditData(prev => ({ ...prev, description: e.target.value }))}
-                    rows={4}
-                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                    placeholder="Mô tả chi tiết về task..."
-                  />
+                  <div className="bg-white dark:bg-gray-700 rounded-xl border border-gray-300 dark:border-gray-600 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent transition-all duration-200">
+                    <ReactQuill
+                      theme="snow"
+                      value={editData.description || ''}
+                      onChange={(value) => setEditData(prev => ({ ...prev, description: value }))}
+                      modules={modules}
+                      formats={formats}
+                      placeholder="Mô tả chi tiết về task..."
+                      style={{
+                        backgroundColor: 'transparent',
+                      }}
+                    />
+                  </div>
                 ) : (
-                  <p className="text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700 p-4 rounded-xl">
-                    {task.description || 'Không có mô tả'}
-                  </p>
+                  <div className="text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700 p-4 rounded-xl">
+                    {task.description ? (
+                      <div dangerouslySetInnerHTML={{ __html: task.description }} />
+                    ) : (
+                      'Không có mô tả'
+                    )}
+                  </div>
                 )}
               </div>
 

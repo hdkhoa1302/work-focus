@@ -11,11 +11,12 @@ import FloatingTimer from './components/timer/FloatingTimer';
 import ChatWidget from './components/ChatWidget';
 import EncouragementModal from './components/EncouragementModal';
 import OvertimeNotificationManager from './components/OvertimeNotificationManager';
-import { AiOutlineMoon, AiOutlineSun, AiOutlineBell, AiOutlineUser, AiOutlineMenu, AiOutlineClose } from 'react-icons/ai';
+import { AiOutlineMoon, AiOutlineSun, AiOutlineUser, AiOutlineMenu, AiOutlineClose } from 'react-icons/ai';
 import { FiLogOut } from 'react-icons/fi';
 import { getTasks, Task, getEncouragement } from './services/api';
 import { getConfig as apiGetConfig } from './services/api';
 import useLanguage from './hooks/useLanguage';
+import NotificationBell from './components/NotificationBell';
 
 function AppContent() {
   const { t } = useLanguage();
@@ -181,6 +182,21 @@ function AppContent() {
 
   const selectedTask = tasks.find(task => task._id === selectedTaskId);
 
+  const handleTaskSelect = (taskId: string) => {
+    const task = tasks.find(t => t._id === taskId);
+    if (task) {
+      // Dispatch event to open task detail
+      window.dispatchEvent(new CustomEvent('view-task-detail', { 
+        detail: { taskId }
+      }));
+    }
+  };
+
+  const handleProjectSelect = (projectId: string) => {
+    // Navigate to project page and select the project
+    window.location.href = `/projects?id=${projectId}`;
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
@@ -239,9 +255,10 @@ function AppContent() {
                   </div>
                   
                   <div className="flex items-center space-x-2 sm:space-x-3">
-                    <button className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200">
-                      <AiOutlineBell className="text-lg sm:text-xl text-gray-600 dark:text-gray-400" />
-                    </button>
+                    <NotificationBell 
+                      onTaskSelect={handleTaskSelect}
+                      onProjectSelect={handleProjectSelect}
+                    />
                     <button
                       onClick={() => setIsDark(!isDark)}
                       className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200"

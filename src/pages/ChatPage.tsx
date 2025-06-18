@@ -21,38 +21,12 @@ import {
   AiOutlineFilter,
   AiOutlineTag,
   AiOutlineCalendar,
-  AiOutlineFlag
+  AiOutlineFlag,
+  AiOutlineCopy,
+  AiOutlineCheck
 } from 'react-icons/ai';
 import { FiMessageSquare, FiClipboard, FiTarget, FiTrendingUp, FiSave, FiX } from 'react-icons/fi';
-
-// Simple markdown renderer component
-const MarkdownRenderer: React.FC<{ content: string }> = ({ content }) => {
-  const renderMarkdown = (text: string) => {
-    return text
-      // Headers
-      .replace(/^### (.*$)/gm, '<h3 class="text-lg font-semibold mt-4 mb-2 text-gray-900 dark:text-gray-100">$1</h3>')
-      .replace(/^## (.*$)/gm, '<h2 class="text-xl font-bold mt-4 mb-2 text-gray-900 dark:text-gray-100">$1</h2>')
-      .replace(/^# (.*$)/gm, '<h1 class="text-2xl font-bold mt-4 mb-2 text-gray-900 dark:text-gray-100">$1</h1>')
-      // Bold
-      .replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-gray-900 dark:text-gray-100">$1</strong>')
-      // Italic
-      .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>')
-      // Lists
-      .replace(/^• (.*$)/gm, '<li class="ml-4 mb-1">• $1</li>')
-      .replace(/^- (.*$)/gm, '<li class="ml-4 mb-1">• $1</li>')
-      .replace(/^\d+\. (.*$)/gm, '<li class="ml-4 mb-1">$1</li>')
-      // Line breaks
-      .replace(/\n\n/g, '<br><br>')
-      .replace(/\n/g, '<br>');
-  };
-
-  return (
-    <div 
-      className="whitespace-pre-wrap leading-relaxed"
-      dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }}
-    />
-  );
-};
+import MarkdownRenderer from '../components/MarkdownRenderer';
 
 const ChatPage: React.FC = () => {
   const navigate = useNavigate();
@@ -66,6 +40,7 @@ const ChatPage: React.FC = () => {
   const [whiteboardItems, setWhiteboardItems] = useState<WhiteboardItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingConversation, setIsLoadingConversation] = useState(false);
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   
   // Whiteboard management states
   const [searchTerm, setSearchTerm] = useState('');
@@ -229,6 +204,16 @@ const ChatPage: React.FC = () => {
   const cancelEdit = () => {
     setEditingItem(null);
     setEditForm({});
+  };
+
+  const copyToClipboard = async (text: string, messageId: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedMessageId(messageId);
+      setTimeout(() => setCopiedMessageId(null), 2000);
+    } catch (error) {
+      console.error('Failed to copy text:', error);
+    }
   };
 
   const sendMessage = async (messageText?: string) => {
@@ -396,7 +381,7 @@ const ChatPage: React.FC = () => {
           </div>
         )}
         
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 overflow-y-auto p-4 space-y-6">
           {isLoadingConversation ? (
             <div className="flex items-center justify-center h-full">
               <div className="text-center">
@@ -408,31 +393,56 @@ const ChatPage: React.FC = () => {
             <>
               {messages.map((message, index) => (
                 <div key={index} className={`flex ${message.from === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[80%] p-4 rounded-2xl ${
+                  <div className={`max-w-[85%] ${
                     message.from === 'user' 
-                      ? 'bg-blue-500 text-white' 
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100'
-                  }`}>
+                      ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-2xl rounded-br-md' 
+                      : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-2xl rounded-bl-md shadow-md border border-gray-200 dark:border-gray-700'
+                  } p-4 relative group`}>
+                    
+                    {/* Copy button */}
+                    <button
+                      onClick={() => copyToClipboard(message.text, `${index}`)}
+                      className={`absolute top-2 right-2 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-200 ${
+                        message.from === 'user' 
+                          ? 'bg-white/20 hover:bg-white/30 text-white' 
+                          : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-400'
+                      }`}
+                      title="Copy message"
+                    >
+                      {copiedMessageId === `${index}` ? (
+                        <AiOutlineCheck className="w-3 h-3" />
+                      ) : (
+                        <AiOutlineCopy className="w-3 h-3" />
+                      )}
+                    </button>
+
                     {message.from === 'bot' ? (
-                      <MarkdownRenderer content={message.text} />
+                      <div className="pr-8">
+                        <MarkdownRenderer 
+                          content={message.text} 
+                          className="text-gray-800 dark:text-gray-200"
+                        />
+                      </div>
                     ) : (
-                      <div className="whitespace-pre-wrap">{message.text}</div>
+                      <div className="whitespace-pre-wrap pr-8 leading-relaxed">{message.text}</div>
                     )}
                     
                     {message.type === 'project' && message.data && (
-                      <div className="mt-3 pt-3 border-t border-gray-300 dark:border-gray-600">
+                      <div className="mt-4 pt-4 border-t border-gray-300 dark:border-gray-600">
                         <button
                           onClick={() => sendMessage('ok')}
-                          className="w-full px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-medium"
+                          className="w-full px-4 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl hover:from-green-600 hover:to-emerald-600 transition-all duration-200 font-medium shadow-lg hover:shadow-xl transform hover:scale-105"
                         >
                           ✅ Tạo dự án này
                         </button>
                       </div>
                     )}
                     
-                    <div className="text-xs opacity-70 mt-2 flex items-center justify-between">
-                      <span>{new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                      <span className="opacity-50">
+                    <div className="flex items-center justify-between mt-3 pt-2 border-t border-gray-200 dark:border-gray-600 opacity-70">
+                      <span className="text-xs">
+                        {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                      <span className="text-xs">
                         {new Date(message.timestamp).toLocaleDateString()}
                       </span>
                     </div>
@@ -441,11 +451,11 @@ const ChatPage: React.FC = () => {
               ))}
               {isLoading && (
                 <div className="flex justify-start">
-                  <div className="bg-gray-100 dark:bg-gray-700 p-4 rounded-2xl">
+                  <div className="bg-white dark:bg-gray-800 rounded-2xl rounded-bl-md shadow-md border border-gray-200 dark:border-gray-700 p-4">
                     <div className="flex space-x-2">
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                      <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
+                      <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                      <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                     </div>
                   </div>
                 </div>
@@ -455,8 +465,8 @@ const ChatPage: React.FC = () => {
           )}
         </div>
         
-        <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-          <div className="flex space-x-2">
+        <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+          <div className="flex space-x-3">
             <textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -467,7 +477,7 @@ const ChatPage: React.FC = () => {
                 }
               }}
               placeholder="Mô tả công việc, ghi chú, hoặc đặt câu hỏi... (Shift+Enter để xuống dòng)"
-              className="flex-1 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none min-h-[48px] max-h-32"
+              className="flex-1 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none min-h-[48px] max-h-32 shadow-sm"
               disabled={isLoading || isLoadingConversation}
               rows={1}
               style={{
@@ -483,10 +493,22 @@ const ChatPage: React.FC = () => {
             <button
               onClick={() => sendMessage()}
               disabled={isLoading || !input.trim() || isLoadingConversation}
-              className="px-6 py-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors self-end"
+              className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-xl hover:from-blue-600 hover:to-purple-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 self-end shadow-lg hover:shadow-xl transform hover:scale-105 disabled:transform-none font-medium"
             >
-              Gửi
+              {isLoading ? (
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              ) : (
+                'Gửi'
+              )}
             </button>
+          </div>
+          
+          <div className="flex justify-between items-center mt-3">
+            <div className="flex space-x-4 text-xs text-gray-500 dark:text-gray-400">
+              <span>💡 Mô tả dự án để AI phân tích</span>
+              <span>📝 Ghi chú quan trọng</span>
+              <span>🤔 Quyết định cần đưa ra</span>
+            </div>
           </div>
         </div>
       </div>

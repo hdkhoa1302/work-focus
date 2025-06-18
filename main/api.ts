@@ -255,8 +255,15 @@ Bạn có muốn tôi tạo dự án và các task này không? Hãy trả lời
                message.toLowerCase().includes('xác nhận') ||
                message.toLowerCase().includes('đồng ý')) {
         
-        // Find the last project analysis in conversation
-        const lastProjectMessage = conversation.messages.findLast(m => m.type === 'project');
+        // Find the last project analysis in conversation - using reverse iteration instead of findLast
+        let lastProjectMessage = null;
+        for (let i = conversation.messages.length - 1; i >= 0; i--) {
+          if (conversation.messages[i].type === 'project') {
+            lastProjectMessage = conversation.messages[i];
+            break;
+          }
+        }
+        
         if (lastProjectMessage?.data) {
           try {
             const analysis = lastProjectMessage.data;

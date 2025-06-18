@@ -29,6 +29,35 @@ interface WhiteboardItem {
   relatedTo?: string;
 }
 
+// Simple markdown renderer component
+const MarkdownRenderer: React.FC<{ content: string }> = ({ content }) => {
+  const renderMarkdown = (text: string) => {
+    return text
+      // Headers
+      .replace(/^### (.*$)/gm, '<h3 class="text-lg font-semibold mt-4 mb-2 text-gray-900 dark:text-gray-100">$1</h3>')
+      .replace(/^## (.*$)/gm, '<h2 class="text-xl font-bold mt-4 mb-2 text-gray-900 dark:text-gray-100">$1</h2>')
+      .replace(/^# (.*$)/gm, '<h1 class="text-2xl font-bold mt-4 mb-2 text-gray-900 dark:text-gray-100">$1</h1>')
+      // Bold
+      .replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-gray-900 dark:text-gray-100">$1</strong>')
+      // Italic
+      .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>')
+      // Lists
+      .replace(/^• (.*$)/gm, '<li class="ml-4 mb-1">• $1</li>')
+      .replace(/^- (.*$)/gm, '<li class="ml-4 mb-1">• $1</li>')
+      .replace(/^\d+\. (.*$)/gm, '<li class="ml-4 mb-1">$1</li>')
+      // Line breaks
+      .replace(/\n\n/g, '<br><br>')
+      .replace(/\n/g, '<br>');
+  };
+
+  return (
+    <div 
+      className="whitespace-pre-wrap leading-relaxed"
+      dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }}
+    />
+  );
+};
+
 const ChatPage: React.FC = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'chat' | 'whiteboard' | 'analysis'>('chat');
@@ -166,8 +195,8 @@ const ChatPage: React.FC = () => {
     saveWhiteboard(updatedItems);
   };
 
-  const sendMessage = async () => {
-    const text = input.trim();
+  const sendMessage = async (messageText?: string) => {
+    const text = messageText || input.trim();
     if (!text || isLoading) return;
     
     const userMsg: Message = { from: 'user', text, timestamp: new Date() };
@@ -277,18 +306,23 @@ const ChatPage: React.FC = () => {
                   ? 'bg-blue-500 text-white' 
                   : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100'
               }`}>
-                <div className="whitespace-pre-wrap">{message.text}</div>
-                {message.type === 'project' && message.data && (
-                  <button
-                    onClick={() => {
-                      setInput('Có, tạo dự án');
-                      sendMessage();
-                    }}
-                    className="mt-3 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
-                  >
-                    ✅ Tạo dự án này
-                  </button>
+                {message.from === 'bot' ? (
+                  <MarkdownRenderer content={message.text} />
+                ) : (
+                  <div className="whitespace-pre-wrap">{message.text}</div>
                 )}
+                
+                {message.type === 'project' && message.data && (
+                  <div className="mt-3 pt-3 border-t border-gray-300 dark:border-gray-600">
+                    <button
+                      onClick={() => sendMessage('Có, tạo dự án')}
+                      className="w-full px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-medium"
+                    >
+                      ✅ Tạo dự án này
+                    </button>
+                  </div>
+                )}
+                
                 <div className="text-xs opacity-70 mt-2">
                   {new Date(message.timestamp).toLocaleTimeString()}
                 </div>
@@ -321,7 +355,7 @@ const ChatPage: React.FC = () => {
               disabled={isLoading}
             />
             <button
-              onClick={sendMessage}
+              onClick={() => sendMessage()}
               disabled={isLoading || !input.trim()}
               className="px-6 py-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >

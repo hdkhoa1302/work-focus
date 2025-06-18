@@ -7,6 +7,35 @@ interface ChatWidgetProps {
   fullPage?: boolean;
 }
 
+// Simple markdown renderer component
+const MarkdownRenderer: React.FC<{ content: string }> = ({ content }) => {
+  const renderMarkdown = (text: string) => {
+    return text
+      // Headers
+      .replace(/^### (.*$)/gm, '<h3 class="text-lg font-semibold mt-4 mb-2">$1</h3>')
+      .replace(/^## (.*$)/gm, '<h2 class="text-xl font-bold mt-4 mb-2">$1</h2>')
+      .replace(/^# (.*$)/gm, '<h1 class="text-2xl font-bold mt-4 mb-2">$1</h1>')
+      // Bold
+      .replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold">$1</strong>')
+      // Italic
+      .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>')
+      // Lists
+      .replace(/^• (.*$)/gm, '<li class="ml-4">• $1</li>')
+      .replace(/^- (.*$)/gm, '<li class="ml-4">• $1</li>')
+      .replace(/^\d+\. (.*$)/gm, '<li class="ml-4">$1</li>')
+      // Line breaks
+      .replace(/\n\n/g, '<br><br>')
+      .replace(/\n/g, '<br>');
+  };
+
+  return (
+    <div 
+      className="whitespace-pre-wrap leading-relaxed"
+      dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }}
+    />
+  );
+};
+
 const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -81,8 +110,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
     }
   };
 
-  const sendMessage = async () => {
-    const text = input.trim();
+  const sendMessage = async (messageText?: string) => {
+    const text = messageText || input.trim();
     if (!text || isLoading) return;
     
     const userMsg: Message = { from: 'user', text, timestamp: new Date() };
@@ -109,6 +138,11 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
       if (response.conversationId !== activeConversationId) {
         setActiveConversationId(response.conversationId);
         loadConversations(); // Refresh conversations list
+      }
+
+      // Trigger tasks refresh if project was created
+      if (response.type === 'task') {
+        window.dispatchEvent(new Event('tasks-updated'));
       }
     } catch (error) {
       const errMsg: Message = { 
@@ -174,19 +208,24 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
                 ? 'bg-blue-500 text-white' 
                 : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200'
             }`}>
-              <div className="whitespace-pre-wrap">{m.text}</div>
-              {m.type === 'project' && m.data && (
-                <button
-                  onClick={() => {
-                    setInput('Có, tạo dự án');
-                    sendMessage();
-                  }}
-                  className="mt-2 px-3 py-1 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-xs"
-                >
-                  ✅ Tạo dự án này
-                </button>
+              {m.from === 'bot' ? (
+                <MarkdownRenderer content={m.text} />
+              ) : (
+                <div className="whitespace-pre-wrap">{m.text}</div>
               )}
-              <div className="text-xs opacity-70 mt-1">
+              
+              {m.type === 'project' && m.data && (
+                <div className="mt-3 pt-3 border-t border-gray-300 dark:border-gray-600">
+                  <button
+                    onClick={() => sendMessage('Có, tạo dự án')}
+                    className="w-full px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-xs font-medium"
+                  >
+                    ✅ Tạo dự án này
+                  </button>
+                </div>
+              )}
+              
+              <div className="text-xs opacity-70 mt-2">
                 {new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </div>
             </div>
@@ -218,7 +257,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
             disabled={isLoading}
           />
           <button
-            onClick={sendMessage}
+            onClick={() => sendMessage()}
             disabled={isLoading || !input.trim()}
             className="px-3 py-2 bg-blue-500 text-white rounded-xl hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
           >

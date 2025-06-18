@@ -289,17 +289,19 @@ ${analysis.keyPoints.map((point: string) => `• ${point}`).join('\n')}${skillsT
           botResponse = '❌ Có lỗi xảy ra khi phân tích. Vui lòng mô tả rõ hơn về dự án bạn muốn thực hiện, bao gồm mục tiêu, phạm vi và thời gian dự kiến.';
         }
       }
-      // Enhanced project creation confirmation
-      else if ((message.toLowerCase().includes('có') && message.toLowerCase().includes('tạo')) ||
+      // Enhanced project creation confirmation with better pattern matching
+      else if ((message.toLowerCase().includes('có') && (message.toLowerCase().includes('tạo') || message.toLowerCase().includes('dự án'))) ||
                message.toLowerCase().includes('xác nhận') ||
                message.toLowerCase().includes('đồng ý') ||
                message.toLowerCase().includes('ok') ||
-               message.toLowerCase().includes('được')) {
+               message.toLowerCase().includes('được') ||
+               message.toLowerCase().trim() === 'có' ||
+               message.toLowerCase().includes('yes')) {
         
         // Find the last project analysis in conversation
         let lastProjectMessage = null;
         for (let i = conversation.messages.length - 1; i >= 0; i--) {
-          if (conversation.messages[i].type === 'project') {
+          if (conversation.messages[i].type === 'project' && conversation.messages[i].data) {
             lastProjectMessage = conversation.messages[i];
             break;
           }

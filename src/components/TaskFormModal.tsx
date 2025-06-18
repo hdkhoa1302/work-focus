@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { createTask, Task, getProjects, Project } from '../services/api';
-import { AiOutlinePlus, AiOutlineCalendar, AiOutlineFire, AiOutlineClose, AiOutlineTag } from 'react-icons/ai';
+import { createTask, Task, getProjects, Project, getConfig, Config } from '../services/api';
+import { AiOutlinePlus, AiOutlineCalendar, AiOutlineFire, AiOutlineClose, AiOutlineTag, AiOutlineInfoCircle, AiOutlineWarning } from 'react-icons/ai';
 import TipTapEditor from './TipTapEditor';
 import useLanguage from '../hooks/useLanguage';
 
@@ -28,6 +28,8 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSave }
   const [newTag, setNewTag] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [config, setConfig] = useState<Config | null>(null);
+  const [workloadWarning, setWorkloadWarning] = useState<string | null>(null);
 
   // Load projects khi modal mở
   useEffect(() => {
@@ -44,7 +46,43 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSave }
       }
     };
     loadProjects();
+    
+    // Load config
+    const loadConfig = async () => {
+      try {
+        const configData = await getConfig();
+        setConfig(configData);
+      } catch (err) {
+        console.error('Failed to load config', err);
+      }
+    };
+    loadConfig();
   }, [isOpen]);
+
+  // Check workload when estimated pomodoros change
+  useEffect(() => {
+    if (!config || !formData.estimatedPomodoros) return;
+    
+    // Calculate if this task would overload the day
+    const pomodoroMinutes = formData.estimatedPomodoros * 25;
+    const workMinutes = calculateAvailableWorkMinutes(config.workSchedule);
+    
+    if (pomodoroMinutes > workMinutes * 0.5) {
+      setWorkloadWarning(`Task này chiếm ${Math.round(pomodoroMinutes / workMinutes * 100)}% thời gian làm việc trong ngày (${formData.estimatedPomodoros * 25} phút / ${workMinutes} phút).`);
+    } else {
+      setWorkloadWarning(null);
+    }
+  }, [formData.estimatedPomodoros, config]);
+
+  const calculateAvailableWorkMinutes = (workSchedule: Config['workSchedule']) => {
+    const [startHour, startMinute] = workSchedule.startTime.split(':').map(Number);
+    const [endHour, endMinute] = workSchedule.endTime.split(':').map(Number);
+    
+    const startMinutes = startHour * 60 + startMinute;
+    const endMinutes = endHour * 60 + endMinute;
+    
+    return endMinutes - startMinutes - (workSchedule.breakHours * 60);
+  };
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -103,6 +141,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSave }
     setNewTag('');
     setErrors({});
     setProjectId('');
+    setWorkloadWarning(null);
     onClose();
   };
 
@@ -245,6 +284,15 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSave }
               {errors.estimatedPomodoros && (
                 <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.estimatedPomodoros}</p>
               )}
+              {workloadWarning && (
+                <div className="mt-2 flex items-start space-x-2 text-yellow-600 dark:text-yellow-400 text-sm">
+                  <AiOutlineWarning className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <p>{workloadWarning}</p>
+                </div>
+              )}
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Mỗi pomodoro = 25 phút tập trung
+              </p>
             </div>
           </div>
 
@@ -303,6 +351,24 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSave }
               </button>
             </div>
           </div>
+
+          {/* Workload Info */}
+          {config && (
+            <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+              <div className="flex items-start space-x-3">
+                <AiOutlineInfoCircle className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" />
+                <div>
+                  <h4 className="font-medium text-blue-800 dark:text-blue-300">Thông tin thời gian làm việc</h4>
+                  <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">
+                    Thời gian làm việc mỗi ngày: <strong>{config.workSchedule.hoursPerDay} giờ</strong> ({config.workSchedule.hoursPerDay * 60 - config.workSchedule.breakHours * 60} phút thực tế)
+                  </p>
+                  <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">
+                    Task này sẽ chiếm <strong>{Math.round(formData.estimatedPomodoros * 25 / (config.workSchedule.hoursPerDay * 60 - config.workSchedule.breakHours * 60) * 100)}%</strong> thời gian làm việc trong ngày
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Submit Buttons */}
           <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200 dark:border-gray-700">

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Task, Project, getDailyTasks, DailyTasksResponse } from '../services/api';
+import { Task, Project, getDailyTasks, DailyTasksResponse, getConfig, Config } from '../services/api';
 import { 
   AiOutlineCalendar, 
   AiOutlineClockCircle, 
@@ -9,9 +9,10 @@ import {
   AiOutlineProject,
   AiOutlineRight,
   AiOutlineLeft,
-  AiOutlineReload
+  AiOutlineReload,
+  AiOutlineInfoCircle
 } from 'react-icons/ai';
-import { FiClock, FiTarget, FiCheckCircle, FiPlay } from 'react-icons/fi';
+import { FiClock, FiTarget, FiCheckCircle, FiPlay, FiAlertTriangle } from 'react-icons/fi';
 
 interface DailyTaskListProps {
   onTaskSelect?: (task: Task) => void;
@@ -23,10 +24,29 @@ const DailyTaskList: React.FC<DailyTaskListProps> = ({ onTaskSelect, onStartTask
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [config, setConfig] = useState<Config | null>(null);
+  const [workloadStatus, setWorkloadStatus] = useState<{
+    isOverloaded: boolean;
+    availableMinutes: number;
+    requiredMinutes: number;
+    overloadedMinutes: number;
+  }>({
+    isOverloaded: false,
+    availableMinutes: 0,
+    requiredMinutes: 0,
+    overloadedMinutes: 0
+  });
 
   useEffect(() => {
     fetchDailyTasks(currentDate);
+    fetchConfig();
   }, [currentDate]);
+
+  useEffect(() => {
+    if (dailyData && config) {
+      calculateWorkload();
+    }
+  }, [dailyData, config]);
 
   const fetchDailyTasks = async (date: Date) => {
     try {
@@ -40,6 +60,58 @@ const DailyTaskList: React.FC<DailyTaskListProps> = ({ onTaskSelect, onStartTask
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const fetchConfig = async () => {
+    try {
+      const configData = await getConfig();
+      setConfig(configData);
+    } catch (err) {
+      console.error('Failed to fetch config:', err);
+    }
+  };
+
+  const calculateWorkload = () => {
+    if (!dailyData || !config) return;
+
+    // Tính toán thời gian làm việc có sẵn trong ngày
+    const workSchedule = config.workSchedule;
+    
+    // Chuyển đổi thời gian bắt đầu và kết thúc thành phút
+    const [startHour, startMinute] = workSchedule.startTime.split(':').map(Number);
+    const [endHour, endMinute] = workSchedule.endTime.split(':').map(Number);
+    
+    const startMinutes = startHour * 60 + startMinute;
+    const endMinutes = endHour * 60 + endMinute;
+    
+    // Tính tổng thời gian làm việc trong ngày (trừ giờ nghỉ)
+    const totalWorkMinutes = endMinutes - startMinutes - (workSchedule.breakHours * 60);
+    
+    // Tính tổng thời gian cần thiết cho các task trong ngày
+    let requiredMinutes = 0;
+    
+    // Tính từ các task có deadline hôm nay
+    dailyData.tasksWithDeadline.forEach(task => {
+      // Mỗi pomodoro là 25 phút
+      requiredMinutes += (task.estimatedPomodoros || 1) * 25;
+    });
+    
+    // Tính từ các task đang thực hiện
+    dailyData.tasksInProgress.forEach(task => {
+      // Chỉ tính 50% thời gian cho các task đang thực hiện không có deadline hôm nay
+      requiredMinutes += (task.estimatedPomodoros || 1) * 25 * 0.5;
+    });
+    
+    // Kiểm tra xem có đủ thời gian không
+    const isOverloaded = requiredMinutes > totalWorkMinutes;
+    const overloadedMinutes = Math.max(0, requiredMinutes - totalWorkMinutes);
+    
+    setWorkloadStatus({
+      isOverloaded,
+      availableMinutes: totalWorkMinutes,
+      requiredMinutes,
+      overloadedMinutes
+    });
   };
 
   const navigateDate = (direction: 'prev' | 'next') => {
@@ -66,6 +138,12 @@ const DailyTaskList: React.FC<DailyTaskListProps> = ({ onTaskSelect, onStartTask
     return date.getDate() === today.getDate() &&
       date.getMonth() === today.getMonth() &&
       date.getFullYear() === today.getFullYear();
+  };
+
+  const formatMinutesToHours = (minutes: number) => {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return `${hours}h${mins > 0 ? ` ${mins}m` : ''}`;
   };
 
   if (isLoading) {
@@ -144,6 +222,43 @@ const DailyTaskList: React.FC<DailyTaskListProps> = ({ onTaskSelect, onStartTask
           </button>
         </div>
       </div>
+
+      {/* Workload Status */}
+      {workloadStatus.isOverloaded && (
+        <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg border border-red-200 dark:border-red-800">
+          <div className="flex items-start space-x-3">
+            <FiAlertTriangle className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
+            <div>
+              <h4 className="font-medium text-red-800 dark:text-red-300">Quá tải công việc!</h4>
+              <p className="text-sm text-red-600 dark:text-red-400 mt-1">
+                Bạn cần <strong>{formatMinutesToHours(workloadStatus.requiredMinutes)}</strong> để hoàn thành tất cả công việc, 
+                nhưng chỉ có <strong>{formatMinutesToHours(workloadStatus.availableMinutes)}</strong> trong ngày làm việc.
+              </p>
+              <p className="text-sm text-red-600 dark:text-red-400 mt-1">
+                Thiếu <strong>{formatMinutesToHours(workloadStatus.overloadedMinutes)}</strong> - Cân nhắc sắp xếp lại công việc hoặc làm thêm giờ.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!workloadStatus.isOverloaded && workloadStatus.requiredMinutes > 0 && (
+        <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg border border-green-200 dark:border-green-800">
+          <div className="flex items-start space-x-3">
+            <AiOutlineCheckCircle className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" />
+            <div>
+              <h4 className="font-medium text-green-800 dark:text-green-300">Khối lượng công việc hợp lý</h4>
+              <p className="text-sm text-green-600 dark:text-green-400 mt-1">
+                Bạn cần <strong>{formatMinutesToHours(workloadStatus.requiredMinutes)}</strong> để hoàn thành tất cả công việc, 
+                và có <strong>{formatMinutesToHours(workloadStatus.availableMinutes)}</strong> trong ngày làm việc.
+              </p>
+              <p className="text-sm text-green-600 dark:text-green-400 mt-1">
+                Còn dư <strong>{formatMinutesToHours(workloadStatus.availableMinutes - workloadStatus.requiredMinutes)}</strong> - Bạn có thể thêm công việc nếu cần.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -295,6 +410,24 @@ const DailyTaskList: React.FC<DailyTaskListProps> = ({ onTaskSelect, onStartTask
           </div>
         </div>
       </div>
+
+      {/* Workload Tip */}
+      <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg border border-gray-200 dark:border-gray-600">
+        <div className="flex items-start space-x-3">
+          <AiOutlineInfoCircle className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" />
+          <div>
+            <h4 className="font-medium text-gray-900 dark:text-gray-100">Mẹo quản lý thời gian</h4>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+              Theo nguyên tắc Pomodoro, mỗi phiên tập trung kéo dài 25 phút, sau đó nghỉ 5 phút. 
+              Sau 4 phiên, nghỉ dài 15-30 phút.
+            </p>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+              Thời gian làm việc hiệu quả mỗi ngày: <strong>{config?.workSchedule.hoursPerDay || 8} giờ</strong> 
+              ({formatMinutesToHours((config?.workSchedule.hoursPerDay || 8) * 60 - (config?.workSchedule.breakHours || 1) * 60)} thực tế sau khi trừ giờ nghỉ)
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
@@ -341,7 +474,7 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onSelect, onStart }) => {
             {task.estimatedPomodoros && (
               <div className="flex items-center">
                 <AiOutlineFire className="mr-1" />
-                <span>{task.estimatedPomodoros} pomodoro</span>
+                <span>{task.estimatedPomodoros} pomodoro ({task.estimatedPomodoros * 25} phút)</span>
               </div>
             )}
           </div>

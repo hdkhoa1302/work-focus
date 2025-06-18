@@ -364,3 +364,43 @@ export const calculateOvertimeRequired = (
   if (remainingHours <= availableWorkingHours) return 0;
   return remainingHours - availableWorkingHours;
 };
+
+// Calculate daily workload
+export const calculateDailyWorkload = (
+  tasks: Task[],
+  workSchedule: Config['workSchedule']
+): {
+  isOverloaded: boolean;
+  availableMinutes: number;
+  requiredMinutes: number;
+  overloadedMinutes: number;
+} => {
+  // Tính toán thời gian làm việc có sẵn trong ngày
+  const [startHour, startMinute] = workSchedule.startTime.split(':').map(Number);
+  const [endHour, endMinute] = workSchedule.endTime.split(':').map(Number);
+  
+  const startMinutes = startHour * 60 + startMinute;
+  const endMinutes = endHour * 60 + endMinute;
+  
+  // Tính tổng thời gian làm việc trong ngày (trừ giờ nghỉ)
+  const totalWorkMinutes = endMinutes - startMinutes - (workSchedule.breakHours * 60);
+  
+  // Tính tổng thời gian cần thiết cho các task
+  let requiredMinutes = 0;
+  
+  tasks.forEach(task => {
+    // Mỗi pomodoro là 25 phút
+    requiredMinutes += (task.estimatedPomodoros || 1) * 25;
+  });
+  
+  // Kiểm tra xem có đủ thời gian không
+  const isOverloaded = requiredMinutes > totalWorkMinutes;
+  const overloadedMinutes = Math.max(0, requiredMinutes - totalWorkMinutes);
+  
+  return {
+    isOverloaded,
+    availableMinutes: totalWorkMinutes,
+    requiredMinutes,
+    overloadedMinutes
+  };
+};

@@ -52,6 +52,7 @@ const SettingsPage: React.FC = () => {
   const [availableApps, setAvailableApps] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
+  const [effectiveWorkHours, setEffectiveWorkHours] = useState(0);
 
   useEffect(() => {
     fetchConfig();
@@ -66,6 +67,12 @@ const SettingsPage: React.FC = () => {
       window.ipc?.removeListener('running-apps-response', handleApps);
     };
   }, []);
+
+  // Calculate effective work hours when workSchedule changes
+  useEffect(() => {
+    const { hoursPerDay, breakHours } = config.workSchedule;
+    setEffectiveWorkHours(hoursPerDay - breakHours);
+  }, [config.workSchedule]);
 
   const fetchConfig = async () => {
     try {
@@ -222,7 +229,7 @@ const SettingsPage: React.FC = () => {
                   ...prev,
                   pomodoro: { ...prev.pomodoro, focus: Number(e.target.value) }
                 }))}
-                className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 sm:px-4 py-2 sm:py-3 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
+                className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 sm:px-4 py-2 sm:py-3 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
               />
             </div>
 
@@ -239,7 +246,7 @@ const SettingsPage: React.FC = () => {
                   ...prev,
                   pomodoro: { ...prev.pomodoro, break: Number(e.target.value) }
                 }))}
-                className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 sm:px-4 py-2 sm:py-3 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
+                className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 sm:px-4 py-2 sm:py-3 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
               />
             </div>
           </div>
@@ -379,6 +386,22 @@ const SettingsPage: React.FC = () => {
                   }))}
                   className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
+              </div>
+            </div>
+
+            {/* Effective Work Hours Summary */}
+            <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg border border-green-200 dark:border-green-800">
+              <div className="flex items-start space-x-3">
+                <FiClock className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" />
+                <div>
+                  <h4 className="font-medium text-green-800 dark:text-green-300">Thời gian làm việc hiệu quả</h4>
+                  <p className="text-sm text-green-600 dark:text-green-400 mt-1">
+                    <strong>{effectiveWorkHours} giờ</strong> ({effectiveWorkHours * 60} phút) mỗi ngày
+                  </p>
+                  <p className="text-sm text-green-600 dark:text-green-400 mt-1">
+                    <strong>{effectiveWorkHours * config.workSchedule.daysPerWeek} giờ</strong> mỗi tuần
+                  </p>
+                </div>
               </div>
             </div>
           </div>

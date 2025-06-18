@@ -1,6 +1,6 @@
 // main/main.ts - entry Electron Main Process
 import * as dotenv from 'dotenv';
-import { connectDB } from './db';
+import { connectDB } from './config/database';
 import { setupAPI } from './api';
 import { app, BrowserWindow, Tray, nativeImage, ipcMain } from 'electron';
 import * as path from 'path';
@@ -73,4 +73,4 @@ ipcMain.on('get-running-apps', async (event) => {
     console.error('Error fetching running apps:', err);
     event.sender.send('running-apps-response', []);
   }
-}); 
+});

@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider, useAuth } from './components/auth/AuthProvider';
 import AuthScreen from './components/auth/AuthScreen';
 import Sidebar from './components/Sidebar';
-import { Dashboard, ProjectsPage, ReportsPage, SettingsPage } from './pages';
+import { Dashboard, ProjectsPage, ReportsPage, SettingsPage, SchedulePage } from './pages';
 import ChatPage from './pages/ChatPage';
 import TaskFormModal from './components/TaskFormModal';
 import CompactTimerCard from './components/timer/CompactTimerCard';
@@ -304,6 +304,7 @@ function AppContent() {
                     <Routes>
                       <Route path="/" element={<Dashboard />} />
                       <Route path="/projects" element={<ProjectsPage />} />
+                      <Route path="/schedule" element={<SchedulePage />} />
                       <Route path="/reports" element={<ReportsPage />} />
                       <Route path="/settings" element={<SettingsPage />} />
                     </Routes>

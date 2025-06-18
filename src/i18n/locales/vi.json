@@ -18,6 +18,7 @@
     "dashboard": "Tổng quan",
     "tasks": "Công việc",
     "projects": "Dự án",
+    "schedule": "Lịch trình",
     "reports": "Báo cáo",
     "settings": "Cài đặt"
   },
@@ -151,5 +152,18 @@
     "progress": "Tiến độ",
     "noPerformanceData": "Chưa có dữ liệu hiệu suất công việc.",
     "completePomodorosToSeeProgress": "Hoàn thành một số phiên Pomodoro để xem tiến trình của bạn!"
+  },
+  "schedule": {
+    "title": "Lịch trình",
+    "subtitle": "Quản lý deadline và công việc theo thời gian",
+    "calendar": "Lịch",
+    "deadlines": "Deadline",
+    "today": "Hôm nay",
+    "tomorrow": "Ngày mai",
+    "thisWeek": "Tuần này",
+    "overdue": "Quá hạn",
+    "noDeadline": "Chưa có deadline",
+    "urgent": "Khẩn cấp",
+    "upcoming": "Sắp tới"
   }
 }

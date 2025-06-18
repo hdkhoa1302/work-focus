@@ -18,6 +18,7 @@
     "dashboard": "Dashboard",
     "tasks": "Tasks",
     "projects": "Projects",
+    "schedule": "Schedule",
     "reports": "Reports",
     "settings": "Settings"
   },
@@ -151,5 +152,18 @@
     "progress": "Progress",
     "noPerformanceData": "No task performance data available yet.",
     "completePomodorosToSeeProgress": "Complete some Pomodoro sessions to see your progress!"
+  },
+  "schedule": {
+    "title": "Schedule",
+    "subtitle": "Manage deadlines and time-based tasks",
+    "calendar": "Calendar",
+    "deadlines": "Deadlines",
+    "today": "Today",
+    "tomorrow": "Tomorrow",
+    "thisWeek": "This Week",
+    "overdue": "Overdue",
+    "noDeadline": "No Deadline",
+    "urgent": "Urgent",
+    "upcoming": "Upcoming"
   }
 }

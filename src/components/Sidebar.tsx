@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { AiOutlineHome, AiOutlineSetting, AiOutlineProject, AiOutlineCheckSquare, AiOutlineBarChart, AiOutlineClose } from 'react-icons/ai';
+import { AiOutlineHome, AiOutlineSetting, AiOutlineProject, AiOutlineCheckSquare, AiOutlineBarChart, AiOutlineClose, AiOutlineCalendar } from 'react-icons/ai';
 import useLanguage from '../hooks/useLanguage';
 
 interface SidebarProps {
@@ -20,6 +20,11 @@ const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
       path: '/projects', 
       icon: <AiOutlineProject className="w-5 h-5 sm:w-6 sm:h-6" />, 
       label: t('navigation.projects')
+    },
+    { 
+      path: '/schedule', 
+      icon: <AiOutlineCalendar className="w-5 h-5 sm:w-6 sm:h-6" />, 
+      label: 'Lịch trình'
     },
     { 
       path: '/reports', 

@@ -2,7 +2,59 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
 contextBridge.exposeInMainWorld('ipc', {
-  send: (channel: string, data: any) => ipcRenderer.send(channel, data),
-  on: (channel: string, listener: (event: any, data: any) => void) => ipcRenderer.on(channel, listener),
-  removeListener: (channel: string, listener: (event: any, data: any) => void) => ipcRenderer.removeListener(channel, listener),
-}); 
+  send: (channel: string, data: any) => {
+    const validChannels = [
+      'timer-start', 
+      'timer-pause', 
+      'timer-resume', 
+      'get-running-apps', 
+      'user-logged-in',
+      'get-notification-config',
+      'update-notification-config',
+      'show-notification',
+      'check-overdue-tasks',
+      'check-upcoming-deadlines',
+      'check-project-deadlines',
+      'check-workload-warnings'
+    ];
+    if (validChannels.includes(channel)) {
+      ipcRenderer.send(channel, data);
+    }
+  },
+  on: (channel: string, listener: (event: any, data: any) => void) => {
+    const validChannels = [
+      'timer-tick', 
+      'timer-done', 
+      'timer-paused', 
+      'running-apps-response',
+      'new-notification',
+      'notification-clicked',
+      'notification-config',
+      'check-overdue-tasks',
+      'check-upcoming-deadlines',
+      'check-project-deadlines',
+      'check-workload-warnings'
+    ];
+    if (validChannels.includes(channel)) {
+      ipcRenderer.on(channel, listener);
+    }
+  },
+  removeListener: (channel: string, listener: (event: any, data: any) => void) => {
+    const validChannels = [
+      'timer-tick', 
+      'timer-done', 
+      'timer-paused', 
+      'running-apps-response',
+      'new-notification',
+      'notification-clicked',
+      'notification-config',
+      'check-overdue-tasks',
+      'check-upcoming-deadlines',
+      'check-project-deadlines',
+      'check-workload-warnings'
+    ];
+    if (validChannels.includes(channel)) {
+      ipcRenderer.removeListener(channel, listener);
+    }
+  },
+});

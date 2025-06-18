@@ -46,7 +46,8 @@
     },
     "files": [
       "dist/**/*",
-      "package.json"
+      "package.json",
+      "assets/**/*"
     ]
   },
   "config": {
@@ -113,6 +114,7 @@
     "i18next-browser-languagedetector": "^8.2.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.15.1",
+    "node-notifier": "^10.0.1",
     "ps-list": "^8.1.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
@@ -130,6 +132,7 @@
     "@types/jsonwebtoken": "^9.0.7",
     "@types/mongoose": "^5.11.96",
     "@types/node": "^24.0.0",
+    "@types/node-notifier": "^8.0.5",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "@types/react-router-dom": "^5.3.3",

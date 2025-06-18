@@ -25,10 +25,28 @@ const OvertimeWarningModal: React.FC<OvertimeWarningModalProps> = ({
   const [isValid, setIsValid] = useState(false);
   const [showError, setShowError] = useState(false);
   const [animateShake, setAnimateShake] = useState(false);
+  const [countdown, setCountdown] = useState(5);
+  const [canClose, setCanClose] = useState(false);
 
   useEffect(() => {
     setIsValid(confirmText === 'Tôi đã hiểu');
   }, [confirmText]);
+
+  // Countdown timer for confirmation requirement
+  useEffect(() => {
+    if (!isOpen) return;
+    
+    let timer: NodeJS.Timeout;
+    if (countdown > 0) {
+      timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+    } else {
+      setCanClose(true);
+    }
+    
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [countdown, isOpen]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,6 +55,28 @@ const OvertimeWarningModal: React.FC<OvertimeWarningModalProps> = ({
       onClose();
       setConfirmText('');
       setShowError(false);
+      
+      // Save acknowledgment to localStorage
+      const itemId = taskTitle ? `task-${taskTitle}` : projectName ? `project-${projectName}` : `ot-${Date.now()}`;
+      const savedAcknowledged = localStorage.getItem('acknowledgedOvertimeItems');
+      const acknowledged = savedAcknowledged ? JSON.parse(savedAcknowledged) : {};
+      acknowledged[itemId] = {
+        timestamp: new Date().toISOString(),
+        overtimeHours,
+        daysOverdue
+      };
+      localStorage.setItem('acknowledgedOvertimeItems', JSON.stringify(acknowledged));
+      
+      // Dispatch event for other components to react
+      window.dispatchEvent(new CustomEvent('overtime-acknowledged', {
+        detail: {
+          itemId,
+          overtimeHours,
+          daysOverdue,
+          taskTitle,
+          projectName
+        }
+      }));
     } else {
       setShowError(true);
       setAnimateShake(true);
@@ -58,12 +98,14 @@ const OvertimeWarningModal: React.FC<OvertimeWarningModalProps> = ({
               </div>
               <h2 className="text-lg font-bold">Cảnh báo OT</h2>
             </div>
-            <button
-              onClick={() => setShowError(true)}
-              className="p-1 hover:bg-white hover:bg-opacity-20 rounded-full transition-colors"
-            >
-              <AiOutlineClose className="text-lg" />
-            </button>
+            {canClose && (
+              <button
+                onClick={() => setShowError(true)}
+                className="p-1 hover:bg-white hover:bg-opacity-20 rounded-full transition-colors"
+              >
+                <AiOutlineClose className="text-lg" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -144,13 +186,14 @@ const OvertimeWarningModal: React.FC<OvertimeWarningModalProps> = ({
             <div className="flex justify-end">
               <button
                 type="submit"
+                disabled={!canClose}
                 className={`px-6 py-3 rounded-xl font-medium transition-all duration-200 ${
-                  isValid
+                  isValid && canClose
                     ? 'bg-red-500 text-white hover:bg-red-600'
                     : 'bg-gray-300 text-gray-700 cursor-not-allowed'
                 }`}
               >
-                Xác nhận
+                {canClose ? 'Xác nhận' : `Vui lòng đợi (${countdown}s)`}
               </button>
             </div>
           </form>

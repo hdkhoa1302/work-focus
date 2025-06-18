@@ -5,6 +5,7 @@ import { setupAPI } from './api';
 import { app, BrowserWindow, Tray, nativeImage, ipcMain } from 'electron';
 import * as path from 'path';
 import { setupTimer } from './timer';
+import { notificationManager } from './notification';
 import psList from 'ps-list';
 
 // Load env và khởi DB/API
@@ -51,6 +52,44 @@ function createWindow() {
   if (isDev) {
     win.webContents.openDevTools();
   }
+
+  // Setup notification IPC handlers
+  setupNotificationHandlers(win);
+}
+
+function setupNotificationHandlers(win: BrowserWindow) {
+  // Handle notification config updates
+  ipcMain.on('update-notification-config', (event, config) => {
+    notificationManager.updateConfig(config);
+  });
+
+  // Handle notification config requests
+  ipcMain.on('get-notification-config', (event) => {
+    event.reply('notification-config', notificationManager.getConfig());
+  });
+
+  // Handle manual notification triggers
+  ipcMain.on('show-notification', (event, notification) => {
+    notificationManager.showNotification(notification);
+  });
+
+  // Handle periodic check triggers from renderer
+  ipcMain.on('check-overdue-tasks', async (event) => {
+    // This would be implemented to check for overdue tasks
+    // and send notifications back to renderer
+  });
+
+  ipcMain.on('check-upcoming-deadlines', async (event) => {
+    // Check for upcoming deadlines
+  });
+
+  ipcMain.on('check-project-deadlines', async (event) => {
+    // Check for project deadlines
+  });
+
+  ipcMain.on('check-workload-warnings', async (event) => {
+    // Check for workload warnings
+  });
 }
 
 app.whenReady().then(() => {
@@ -60,7 +99,10 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
+  if (process.platform !== 'darwin') {
+    notificationManager.destroy();
+    app.quit();
+  }
 });
 
 // IPC handler để lấy danh sách ứng dụng đang chạy
@@ -73,4 +115,4 @@ ipcMain.on('get-running-apps', async (event) => {
     console.error('Error fetching running apps:', err);
     event.sender.send('running-apps-response', []);
   }
-}); 
+});

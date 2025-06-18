@@ -2,12 +2,12 @@
 
 export interface Notification {
   id: string;
-  type: 'overdue' | 'upcoming' | 'ot' | 'system';
+  type: 'overdue' | 'upcoming' | 'ot' | 'system' | 'achievement' | 'pomodoroComplete' | 'breakComplete' | 'taskDeadline' | 'projectDeadline' | 'workloadWarning';
   title: string;
   message: string;
   timestamp: Date;
   read: boolean;
-  priority: 'high' | 'medium' | 'low';
+  priority: 'high' | 'medium' | 'low' | 'critical';
   relatedId?: string;
   relatedType?: 'task' | 'project';
   actionRequired?: boolean;
@@ -47,6 +47,20 @@ export const addNotification = (notification: Notification): void => {
   window.dispatchEvent(new CustomEvent('new-notification', {
     detail: { notification }
   }));
+  
+  // Send to main process for OS notification if needed
+  const notificationConfig = localStorage.getItem('notificationConfig');
+  if (notificationConfig) {
+    const config = JSON.parse(notificationConfig);
+    if (config.osNotifications && (notification.priority === 'high' || notification.priority === 'critical')) {
+      window.ipc?.send('show-notification', notification);
+    }
+  } else {
+    // Default to showing OS notifications for high priority
+    if (notification.priority === 'high' || notification.priority === 'critical') {
+      window.ipc?.send('show-notification', notification);
+    }
+  }
 };
 
 // Mark a notification as read
@@ -149,7 +163,7 @@ export const createProjectDeadlineNotification = (
 ): void => {
   const notification: Notification = {
     id: `project-deadline-${projectId}-${Date.now()}`,
-    type: 'upcoming',
+    type: 'projectDeadline',
     title: 'Deadline dự án sắp đến',
     message: `Dự án "${projectName}" sẽ đến hạn trong ${daysRemaining} ngày.`,
     timestamp: new Date(),
@@ -176,7 +190,7 @@ export const createWorkloadNotification = (
   
   const notification: Notification = {
     id: `workload-${Date.now()}`,
-    type: 'ot',
+    type: 'workloadWarning',
     title: 'Quá tải công việc hôm nay',
     message: `Bạn cần ${formatMinutes(requiredMinutes)} để hoàn thành tất cả task, nhưng chỉ có ${formatMinutes(availableMinutes)} trong ngày. Thiếu ${formatMinutes(overloadedMinutes)}.`,
     timestamp: new Date(),
@@ -192,7 +206,7 @@ export const createWorkloadNotification = (
 export const createSystemNotification = (
   title: string,
   message: string,
-  priority: 'high' | 'medium' | 'low' = 'medium'
+  priority: 'high' | 'medium' | 'low' | 'critical' = 'medium'
 ): void => {
   const notification: Notification = {
     id: `system-${Date.now()}`,
@@ -202,6 +216,58 @@ export const createSystemNotification = (
     timestamp: new Date(),
     read: false,
     priority
+  };
+  
+  addNotification(notification);
+};
+
+// Create a pomodoro completion notification
+export const createPomodoroCompleteNotification = (
+  taskTitle?: string
+): void => {
+  const notification: Notification = {
+    id: `pomodoro-complete-${Date.now()}`,
+    type: 'pomodoroComplete',
+    title: 'Phiên Pomodoro hoàn thành',
+    message: taskTitle 
+      ? `Bạn đã hoàn thành phiên tập trung cho task "${taskTitle}". Hãy nghỉ ngơi!`
+      : 'Bạn đã hoàn thành phiên tập trung. Hãy nghỉ ngơi!',
+    timestamp: new Date(),
+    read: false,
+    priority: 'medium'
+  };
+  
+  addNotification(notification);
+};
+
+// Create a break completion notification
+export const createBreakCompleteNotification = (): void => {
+  const notification: Notification = {
+    id: `break-complete-${Date.now()}`,
+    type: 'breakComplete',
+    title: 'Hết giờ nghỉ',
+    message: 'Thời gian nghỉ đã kết thúc. Sẵn sàng cho phiên tập trung tiếp theo?',
+    timestamp: new Date(),
+    read: false,
+    priority: 'medium'
+  };
+  
+  addNotification(notification);
+};
+
+// Create an achievement notification
+export const createAchievementNotification = (
+  achievementTitle: string,
+  achievementDescription: string
+): void => {
+  const notification: Notification = {
+    id: `achievement-${Date.now()}`,
+    type: 'achievement',
+    title: 'Thành tích mới!',
+    message: `${achievementTitle}: ${achievementDescription}`,
+    timestamp: new Date(),
+    read: false,
+    priority: 'medium'
   };
   
   addNotification(notification);

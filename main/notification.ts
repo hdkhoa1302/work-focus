@@ -315,38 +315,68 @@ class NotificationManager {
   }
 
   private async checkOverdueTasks() {
-    // This would integrate with your task API
-    const mainWindow = require('electron').BrowserWindow.getAllWindows()[0];
-    if (mainWindow) {
-      mainWindow.webContents.send('check-overdue-tasks');
+    // Instead of sending message to renderer, check directly here
+    // This prevents infinite loop between main and renderer
+    try {
+      // For now, just log. In production, this would check database directly
+      console.log('Checking for overdue tasks...');
+      
+      // TODO: Implement direct database check for overdue tasks
+      // const overdueTasks = await TaskModel.find({ 
+      //   deadline: { $lt: new Date() }, 
+      //   status: { $ne: 'done' } 
+      // });
+      
+      // Show notifications for overdue tasks
+      // overdueTasks.forEach(task => {
+      //   this.showNotification({
+      //     id: `task-overdue-${task._id}`,
+      //     type: 'taskOverdue',
+      //     title: 'Task quá hạn',
+      //     body: `Task "${task.title}" đã quá hạn`,
+      //     priority: 'high',
+      //     timestamp: new Date()
+      //   });
+      // });
+      
+    } catch (error) {
+      console.error('Error checking overdue tasks:', error);
     }
   }
 
   private async checkUpcomingDeadlines() {
-    const mainWindow = require('electron').BrowserWindow.getAllWindows()[0];
-    if (mainWindow) {
-      mainWindow.webContents.send('check-upcoming-deadlines');
+    try {
+      console.log('Checking for upcoming deadlines...');
+      // TODO: Implement direct database check for upcoming deadlines
+    } catch (error) {
+      console.error('Error checking upcoming deadlines:', error);
     }
   }
 
   private async checkProjectDeadlines() {
-    const mainWindow = require('electron').BrowserWindow.getAllWindows()[0];
-    if (mainWindow) {
-      mainWindow.webContents.send('check-project-deadlines');
+    try {
+      console.log('Checking for project deadlines...');
+      // TODO: Implement direct database check for project deadlines
+    } catch (error) {
+      console.error('Error checking project deadlines:', error);
     }
   }
 
   private async checkWorkloadWarnings() {
-    const mainWindow = require('electron').BrowserWindow.getAllWindows()[0];
-    if (mainWindow) {
-      mainWindow.webContents.send('check-workload-warnings');
+    try {
+      console.log('Checking for workload warnings...');
+      // TODO: Implement workload analysis
+    } catch (error) {
+      console.error('Error checking workload warnings:', error);
     }
   }
 
   private async checkInactivity() {
-    const mainWindow = require('electron').BrowserWindow.getAllWindows()[0];
-    if (mainWindow) {
-      mainWindow.webContents.send('check-inactivity');
+    try {
+      console.log('Checking for inactivity...');
+      // This is handled by the inactivity tracker
+    } catch (error) {
+      console.error('Error checking inactivity:', error);
     }
   }
 

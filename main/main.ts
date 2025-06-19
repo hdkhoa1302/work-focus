@@ -81,24 +81,29 @@ function setupNotificationHandlers(win: BrowserWindow) {
 
   // Handle periodic check triggers from renderer
   ipcMain.on('check-overdue-tasks', async (event) => {
-    // This would be implemented to check for overdue tasks
-    // and send notifications back to renderer
+    // Prevent loop - don't send message back to renderer
+    // The periodic checks in main process will handle this
+    console.log('Received check-overdue-tasks request - handled by main process periodic checks');
   });
 
   ipcMain.on('check-upcoming-deadlines', async (event) => {
-    // Check for upcoming deadlines
+    // Prevent loop - don't send message back to renderer
+    console.log('Received check-upcoming-deadlines request - handled by main process periodic checks');
   });
 
   ipcMain.on('check-project-deadlines', async (event) => {
-    // Check for project deadlines
+    // Prevent loop - don't send message back to renderer
+    console.log('Received check-project-deadlines request - handled by main process periodic checks');
   });
 
   ipcMain.on('check-workload-warnings', async (event) => {
-    // Check for workload warnings
+    // Prevent loop - don't send message back to renderer
+    console.log('Received check-workload-warnings request - handled by main process periodic checks');
   });
 
   ipcMain.on('check-inactivity', async (event) => {
-    // Check for user inactivity
+    // Prevent loop - don't send message back to renderer
+    console.log('Received check-inactivity request - handled by main process periodic checks');
   });
 
   // Track user activity
@@ -142,7 +147,6 @@ ipcMain.on('get-running-apps', async (event) => {
 
 // Handle user login
 ipcMain.on('user-logged-in', (event, args: { userId: string }) => {
-  currentUserId = args.userId;
   setCurrentUser(args.userId);
   updateLastActivityTime();
 });

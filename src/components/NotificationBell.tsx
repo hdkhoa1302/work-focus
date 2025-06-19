@@ -65,18 +65,16 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ onTaskSelect, onPro
 
     window.ipc?.on('notification-clicked', handleNotificationClick);
 
-    // Set up periodic check for new notifications
-    const checkInterval = setInterval(() => {
-      checkForNewNotifications();
-    }, 5 * 60 * 1000); // Check every 5 minutes
-
-    // Initial check
+    // Remove periodic check to avoid loop with main process
+    // Main process will handle all periodic checks via notificationManager
+    
+    // Perform one-time initial check only
     checkForNewNotifications();
 
     return () => {
       window.ipc?.removeListener('new-notification', handleNewNotification);
       window.ipc?.removeListener('notification-clicked', handleNotificationClick);
-      clearInterval(checkInterval);
+      // No need to clear interval since we removed it
     };
   }, [onTaskSelect, onProjectSelect]);
 

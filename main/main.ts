@@ -60,13 +60,13 @@ function createWindow() {
 
 function setupNotificationHandlers(win: BrowserWindow) {
   // Handle notification config updates
-  ipcMain.on('update-notification-config', (event, config) => {
+  ipcMain.handle('update-notification-config', (event, config) => {
     notificationManager.updateConfig(config);
   });
 
   // Handle notification config requests
-  ipcMain.on('get-notification-config', (event) => {
-    event.reply('notification-config', notificationManager.getConfig());
+  ipcMain.handle('get-notification-config', (event) => {
+    return notificationManager.getConfig();
   });
 
   // Handle manual notification triggers
@@ -77,6 +77,52 @@ function setupNotificationHandlers(win: BrowserWindow) {
   // Handle notification acknowledgment
   ipcMain.on('acknowledge-notification', (event, notificationId) => {
     notificationManager.acknowledgeNotification(notificationId);
+  });
+
+  // Handle notification action events from OS notifications
+  ipcMain.on('handle-notification-action', (event, data) => {
+    const { notification, action } = data;
+    
+    // Forward the action to the appropriate handler
+    switch (action) {
+      case 'xem task':
+      case 'view task':
+        win.webContents.send('navigate-to-task', notification.data?.relatedId);
+        break;
+      case 'hoàn thành':
+      case 'complete':
+        win.webContents.send('complete-task', notification.data?.relatedId);
+        break;
+      case 'snooze':
+        // Re-schedule notification for later
+        setTimeout(() => {
+          notificationManager.showNotification({
+            ...notification,
+            id: `${notification.id}-snoozed`,
+            title: notification.title + ' (Snoozed)',
+            timestamp: new Date()
+          });
+        }, 10 * 60 * 1000); // 10 minutes
+        break;
+      case 'xem dự án':
+      case 'view project':
+        win.webContents.send('navigate-to-project', notification.data?.relatedId);
+        break;
+      case 'đã biết':
+      case 'acknowledged':
+        notificationManager.acknowledgeNotification(notification.id);
+        break;
+      case 'xem lịch':
+      case 'view schedule':
+        win.webContents.send('navigate-to-schedule');
+        break;
+      case 'bỏ qua':
+      case 'dismiss':
+      case 'ok':
+      case 'tuyệt vời!':
+        notificationManager.acknowledgeNotification(notification.id);
+        break;
+    }
   });
 
   // Handle periodic check triggers from renderer

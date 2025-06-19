@@ -165,5 +165,123 @@
     "noDeadline": "Chưa có deadline",
     "urgent": "Khẩn cấp",
     "upcoming": "Sắp tới"
+  },
+  "notifications": {
+    "title": "Thông báo",
+    "settings": {
+      "title": "Cài đặt thông báo",
+      "subtitle": "Quản lý thông báo và cảnh báo",
+      "generalSettings": "Cài đặt chung",
+      "enable": "Bật thông báo",
+      "enableDescription": "Hiển thị tất cả thông báo",
+      "sound": "Âm thanh",
+      "soundDescription": "Phát âm thanh khi có thông báo",
+      "osNotifications": "Thông báo hệ thống",
+      "osNotificationsDescription": "Hiển thị thông báo trên OS",
+      "checkInterval": "Kiểm tra mỗi",
+      "checkIntervalDescription": "Tần suất kiểm tra thông báo",
+      "quietHours": "Giờ yên tĩnh",
+      "quietHoursEnable": "Bật giờ yên tĩnh",
+      "quietHoursDescription": "Tắt thông báo trong khoảng thời gian cụ thể",
+      "quietHoursStart": "Bắt đầu",
+      "quietHoursEnd": "Kết thúc",
+      "notificationTypes": "Loại thông báo",
+      "test": "Kiểm tra thông báo",
+      "testDescription": "Gửi thông báo thử nghiệm để kiểm tra cài đặt",
+      "testButton": "Thử nghiệm",
+      "settingsUpdated": "Cài đặt đã được cập nhật!",
+      "settingsError": "Lỗi khi lưu cài đặt.",
+      "cancel": "Hủy"
+    },
+    "types": {
+      "taskOverdue": {
+        "title": "Task quá hạn",
+        "description": "Thông báo khi task đã quá deadline"
+      },
+      "taskDeadline": {
+        "title": "Deadline sắp đến",
+        "description": "Thông báo khi task sắp đến deadline"
+      },
+      "projectDeadline": {
+        "title": "Deadline dự án",
+        "description": "Thông báo về deadline của dự án"
+      },
+      "workloadWarning": {
+        "title": "Cảnh báo quá tải",
+        "description": "Thông báo khi khối lượng công việc quá nhiều"
+      },
+      "pomodoroComplete": {
+        "title": "Hoàn thành Pomodoro",
+        "description": "Thông báo khi phiên tập trung kết thúc"
+      },
+      "breakComplete": {
+        "title": "Hết giờ nghỉ",
+        "description": "Thông báo khi phiên nghỉ kết thúc"
+      },
+      "achievement": {
+        "title": "Thành tích",
+        "description": "Thông báo khi đạt được thành tích mới"
+      },
+      "system": {
+        "title": "Hệ thống",
+        "description": "Thông báo hệ thống và cập nhật"
+      }
+    },
+    "messages": {
+      "testNotification": {
+        "title": "Thông báo thử nghiệm",
+        "message": "Đây là thông báo thử nghiệm để kiểm tra cài đặt của bạn."
+      },
+      "taskOverdue": "Task \"{{taskTitle}}\" đã quá hạn {{daysOverdue}} ngày. Cần {{overtimeHours}} giờ OT để hoàn thành.",
+      "projectDeadline": "Dự án \"{{projectName}}\" sẽ đến hạn trong {{daysRemaining}} ngày.",
+      "workloadWarning": "Bạn cần {{requiredTime}} để hoàn thành tất cả task, nhưng chỉ có {{availableTime}} trong ngày. Thiếu {{overloadedTime}}.",
+      "pomodoroComplete": "Bạn đã hoàn thành phiên tập trung{{taskTitle}}. Hãy nghỉ ngơi!",
+      "pomodoroCompleteNoTask": "Bạn đã hoàn thành phiên tập trung. Hãy nghỉ ngơi!",
+      "breakComplete": "Thời gian nghỉ đã kết thúc. Sẵn sàng cho phiên tập trung tiếp theo?",
+      "achievement": "{{achievementDescription}}"
+    },
+    "actions": {
+      "viewTask": "Xem Task",
+      "complete": "Hoàn thành",
+      "snooze": "Snooze",
+      "viewProject": "Xem Dự án",
+      "acknowledge": "Đã biết",
+      "viewSchedule": "Xem lịch",
+      "dismiss": "Bỏ qua",
+      "ok": "OK",
+      "awesome": "Tuyệt vời!",
+      "close": "Đóng"
+    },
+    "bell": {
+      "noNotifications": "Không có thông báo mới",
+      "allCaught": "Bạn đã xem hết tất cả!",
+      "markAllRead": "Đánh dấu đã đọc",
+      "settings": "Cài đặt"
+    },
+    "center": {
+      "title": "Trung tâm thông báo",
+      "filters": {
+        "all": "Tất cả",
+        "unread": "Chưa đọc",
+        "high": "Quan trọng",
+        "medium": "Thông thường"
+      },
+      "noNotifications": "Không có thông báo nào"
+    },
+    "time": {
+      "justNow": "vừa xong",
+      "minutesAgo": "{{minutes}} phút trước",
+      "hoursAgo": "{{hours}} giờ trước",
+      "yesterday": "hôm qua",
+      "daysAgo": "{{days}} ngày trước"
+    },
+    "intervals": {
+      "1min": "1 phút",
+      "5min": "5 phút",
+      "10min": "10 phút",
+      "15min": "15 phút",
+      "30min": "30 phút",
+      "1hour": "1 giờ"
+    }
   }
 }

@@ -15,19 +15,37 @@
     "start:dev": "npm run build:renderer && npm run copy-public && concurrently --kill-others-on-fail \"npm run dev:main\" \"npm run dev:renderer\" \"wait-on dist/main/renderer/index.html && electron .\"",
     "pack": "npm run build && electron-builder --dir",
     "dist": "npm run build && electron-builder",
-    "dist:mac": "npm run build && electron-builder --mac"
+    "dist:mac": "npm run build && electron-builder --mac",
+    "dist:win": "npm run build && electron-builder --win",
+    "dist:linux": "npm run build && electron-builder --linux"
   },
   "keywords": [],
-  "author": "khoahd",
+  "author": {
+    "name": "khoahd",
+    "email": "hdkhoa1302@gmail.com"
+  },
   "license": "MIT",
   "build": {
     "appId": "com.workfocus.app",
     "productName": "Work Focus",
     "electronCompile": false,
+    "icon": "build/icon.png",
     "mac": {
       "category": "public.app-category.productivity",
-      "target": ["dmg", "zip"],
+      "target": [
+        "dmg",
+        "zip"
+      ],
       "icon": "build/icon.icns"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "build/icon.png",
+      "category": "Office"
     },
     "dmg": {
       "backgroundColor": "#f0f0f0",
@@ -121,7 +139,9 @@
     "react-i18next": "^15.5.3",
     "react-icons": "^5.5.0",
     "react-router-dom": "^7.6.2",
-    "recharts": "^2.15.3"
+    "recharts": "^2.15.3",
+    "uuid": "^11.1.0",
+    "zustand": "^5.0.5"
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",
@@ -136,6 +156,7 @@
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "@types/react-router-dom": "^5.3.3",
+    "@types/uuid": "^10.0.0",
     "babel-plugin-transform-async-to-generator": "^6.24.1",
     "babel-preset-env": "^1.7.0",
     "babel-preset-react": "^6.24.1",

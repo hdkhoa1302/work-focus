@@ -9,10 +9,11 @@ import { ConversationModel } from './models/conversation';
 import { setupAuthRoutes, authenticateToken } from './auth';
 import { ProjectModel } from './models/project';
 import { chat } from './services/geminiService';
+import { findAvailablePortWithInfo, suggestSolution } from './utils/port-checker';
 
-export function setupAPI() {
+export async function setupAPI() {
   const app = express();
-  const port = process.env.API_PORT || 3000;
+  const preferredPort = parseInt(process.env.API_PORT || '3000', 10);
 
   app.use(cors());
   app.use(bodyParser.json());
@@ -1273,7 +1274,52 @@ Trả lời bằng tiếng Việt, thân thiện và có cấu trúc rõ ràng.
     }
   });
 
-  app.listen(port, () => {
+  // Tìm port khả dụng với thông tin chi tiết
+  let port: number;
+  try {
+    const result = await findAvailablePortWithInfo(preferredPort);
+    port = result.port;
+    
+    if (port !== preferredPort) {
+      console.log(`⚠️  Port ${preferredPort} đã bị sử dụng, chuyển sang port ${port}`);
+      
+      // Hiển thị thông tin chi tiết về các port bị xung đột
+      if (result.conflicts.length > 0) {
+        console.log('📋 Thông tin các port đã bị sử dụng:');
+        result.conflicts.forEach(conflict => {
+          if (conflict.processInfo) {
+            const { pid, name, cmd } = conflict.processInfo;
+            console.log(`   Port ${conflict.port}: ${name} (PID: ${pid}) - ${cmd}`);
+            
+            // Hiển thị gợi ý giải pháp
+            const suggestions = suggestSolution(conflict);
+            if (suggestions.length > 0) {
+              console.log(`   💡 Gợi ý: ${suggestions[0]}`);
+            }
+          }
+        });
+      }
+    }
+  } catch (error) {
+    console.error('❌ Lỗi khi tìm port khả dụng:', error);
+    throw error;
+  }
+
+  // Khởi động server với error handling
+  const server = app.listen(port, () => {
     console.log(`🌐 API server listening on http://localhost:${port}`);
+    console.log(`✅ Server khởi động thành công tại port ${port}`);
   });
+
+  // Xử lý lỗi server
+  server.on('error', (error: any) => {
+    if (error.code === 'EADDRINUSE') {
+      console.error(`❌ Port ${port} đã bị sử dụng. Vui lòng thử khởi động lại ứng dụng.`);
+    } else {
+      console.error('❌ Lỗi khởi động API server:', error);
+    }
+    process.exit(1);
+  });
+
+  return { server, port };
 }

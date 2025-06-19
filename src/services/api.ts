@@ -1,6 +1,27 @@
 import axios from 'axios';
 
-const API_BASE = 'http://localhost:3000';
+// Dynamic API base URL
+let API_BASE = 'http://localhost:3000';
+
+// Initialize API config from main process
+const initializeApiConfig = async () => {
+  if (typeof window !== 'undefined' && window.ipc?.invoke) {
+    try {
+      const config = await window.ipc.invoke('get-api-config');
+      if (config?.baseUrl) {
+        API_BASE = config.baseUrl;
+        api.defaults.baseURL = API_BASE;
+        console.log(`✅ API client đã cập nhật baseURL: ${API_BASE}`);
+      }
+    } catch (error) {
+      console.warn('⚠️ Không thể lấy cấu hình API từ main process, sử dụng port mặc định 3000');
+    }
+  }
+};
+
+// Initialize on module load
+initializeApiConfig();
+
 const api = axios.create({ baseURL: API_BASE });
 
 // Thêm interceptor để gắn JWT token vào Authorization header

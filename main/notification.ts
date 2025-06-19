@@ -244,9 +244,14 @@ class NotificationManager {
 
   private async showNotificationImmediate(notification: NotificationData): Promise<void> {
     console.log(`[NOTIFICATION DEBUG] Showing notification: ${notification.type} - ${notification.title}`);
+    
+    this.globalLastNotificationTime = new Date();
+    this.lastNotificationTimes.set(notification.type, new Date());
 
-    // Add to in-app notification system
+    // DISABLED TO PREVENT INFINITE LOOP - renderer handles notifications directly
+    /*
     this.addToInAppNotifications(notification);
+    */
 
     // Show OS notification if enabled
     if (this.config.osNotifications) {
@@ -260,6 +265,8 @@ class NotificationManager {
     }
   }
 
+  // DISABLED TO PREVENT INFINITE LOOP - renderer handles notifications directly
+  /*
   private addToInAppNotifications(notification: NotificationData) {
     // Send to renderer process
     const mainWindow = require('electron').BrowserWindow.getAllWindows()[0];
@@ -278,6 +285,7 @@ class NotificationManager {
       });
     }
   }
+  */
 
   private async showOSNotification(notification: NotificationData): Promise<void> {
     try {
@@ -286,13 +294,17 @@ class NotificationManager {
         const iconPath = path.join(__dirname, '..', '..', 'assets', 'notification-icon.png');
         const icon = nativeImage.createFromPath(iconPath);
         
+        // Create actions based on notification type
+        const actions = this.getNotificationActions(notification.type);
+        
         const osNotification = new Notification({
           title: notification.title,
           body: notification.body,
           icon: icon.isEmpty() ? undefined : icon,
           urgency: this.getOSUrgency(notification.priority),
           silent: !this.config.sound,
-          timeoutType: notification.priority === 'critical' ? 'never' : 'default'
+          timeoutType: notification.priority === 'critical' ? 'never' : 'default',
+          actions: actions
         });
 
         osNotification.on('click', () => {
@@ -307,21 +319,40 @@ class NotificationManager {
           }
         });
 
+        osNotification.on('action', (event, index) => {
+          const action = actions[index];
+          const mainWindow = require('electron').BrowserWindow.getAllWindows()[0];
+          if (mainWindow) {
+            if (mainWindow.isMinimized()) mainWindow.restore();
+            mainWindow.focus();
+            
+            // Send action event to renderer
+            mainWindow.webContents.send('notification-action', {
+              notification,
+              action: action.text.toLowerCase()
+            });
+          }
+        });
+
         osNotification.show();
       } else {
         // Fallback to node-notifier for cross-platform support
+        const actions = this.getNotificationActions(notification.type);
+        const actionsText = actions.length > 0 ? `\n\nHành động: ${actions.map(a => a.text).join(', ')}` : '';
+        
         nodeNotifier.notify({
           title: notification.title,
-          message: notification.body,
+          message: notification.body + actionsText,
           icon: path.join(__dirname, '..', '..', 'assets', 'notification-icon.png'),
           sound: this.config.sound,
           wait: true, // Wait for user interaction
-          timeout: notification.priority === 'critical' ? false : 10
-        }, (err, response) => {
+          timeout: notification.priority === 'critical' ? false : 10,
+          actions: actions.map(a => a.text).join(',')
+        }, (err, response, metadata) => {
           if (err) console.error('Error showing OS notification:', err);
           
           // Handle click
-          if (response === 'clicked') {
+          if (response === 'clicked' || response === 'activate') {
             const mainWindow = require('electron').BrowserWindow.getAllWindows()[0];
             if (mainWindow) {
               if (mainWindow.isMinimized()) mainWindow.restore();
@@ -330,11 +361,57 @@ class NotificationManager {
               // Send click event to renderer
               mainWindow.webContents.send('notification-clicked', notification);
             }
+          } else if (metadata && metadata.activationValue) {
+            // Handle action button click
+            const mainWindow = require('electron').BrowserWindow.getAllWindows()[0];
+            if (mainWindow) {
+              if (mainWindow.isMinimized()) mainWindow.restore();
+              mainWindow.focus();
+              
+              // Send action event to renderer
+              mainWindow.webContents.send('notification-action', {
+                notification,
+                action: metadata.activationValue.toLowerCase()
+              });
+            }
           }
         });
       }
     } catch (error) {
       console.error('Failed to show OS notification:', error);
+    }
+  }
+
+  private getNotificationActions(type: keyof NotificationConfig['types']): Array<{text: string, type: 'button'}> {
+    switch (type) {
+      case 'taskOverdue':
+      case 'taskDeadline':
+        return [
+          { text: 'Xem Task', type: 'button' },
+          { text: 'Hoàn thành', type: 'button' },
+          { text: 'Snooze', type: 'button' }
+        ];
+      case 'projectDeadline':
+        return [
+          { text: 'Xem Dự án', type: 'button' },
+          { text: 'Đã biết', type: 'button' }
+        ];
+      case 'workloadWarning':
+        return [
+          { text: 'Xem lịch', type: 'button' },
+          { text: 'Bỏ qua', type: 'button' }
+        ];
+      case 'pomodoroComplete':
+      case 'breakComplete':
+        return [
+          { text: 'OK', type: 'button' }
+        ];
+      case 'achievement':
+        return [
+          { text: 'Tuyệt vời!', type: 'button' }
+        ];
+      default:
+        return [];
     }
   }
 

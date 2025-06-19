@@ -24,6 +24,16 @@ contextBridge.exposeInMainWorld('ipc', {
       ipcRenderer.send(channel, data);
     }
   },
+  invoke: (channel: string, data?: any) => {
+    const validChannels = [
+      'get-api-config',
+      'get-notification-config',
+      'update-notification-config'
+    ];
+    if (validChannels.includes(channel)) {
+      return ipcRenderer.invoke(channel, data);
+    }
+  },
   on: (channel: string, listener: (event: any, data: any) => void) => {
     const validChannels = [
       'timer-tick', 

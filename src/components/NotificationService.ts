@@ -1,5 +1,8 @@
 // Notification Service - Utility for managing notifications across the app
 
+import useNotificationStore from '../stores/notificationStore';
+import { Notification } from '../types/notification';
+
 export interface Notification {
   id: string;
   type: 'overdue' | 'upcoming' | 'ot' | 'system' | 'achievement' | 'pomodoroComplete' | 'breakComplete' | 'taskDeadline' | 'projectDeadline' | 'workloadWarning';
@@ -139,20 +142,17 @@ export const createTaskOverdueNotification = (
   daysOverdue: number,
   overtimeHours: number
 ): void => {
-  const notification: Notification = {
-    id: `task-overdue-${taskId}-${Date.now()}`,
+  const notification: Omit<Notification, 'id' | 'timestamp' | 'read'> = {
     type: 'overdue',
     title: 'Task quá hạn',
     message: `Task "${taskTitle}" đã quá hạn ${daysOverdue} ngày. Cần ${overtimeHours.toFixed(1)} giờ OT để hoàn thành.`,
-    timestamp: new Date(),
-    read: false,
     priority: 'high',
     relatedId: taskId,
     relatedType: 'task',
     actionRequired: true
   };
   
-  addNotification(notification);
+  useNotificationStore.getState().addNotification(notification);
 };
 
 // Create a project deadline notification
@@ -161,19 +161,16 @@ export const createProjectDeadlineNotification = (
   projectName: string,
   daysRemaining: number
 ): void => {
-  const notification: Notification = {
-    id: `project-deadline-${projectId}-${Date.now()}`,
+  const notification: Omit<Notification, 'id' | 'timestamp' | 'read'> = {
     type: 'projectDeadline',
     title: 'Deadline dự án sắp đến',
     message: `Dự án "${projectName}" sẽ đến hạn trong ${daysRemaining} ngày.`,
-    timestamp: new Date(),
-    read: false,
     priority: daysRemaining <= 2 ? 'high' : 'medium',
     relatedId: projectId,
     relatedType: 'project'
   };
   
-  addNotification(notification);
+  useNotificationStore.getState().addNotification(notification);
 };
 
 // Create a daily workload notification
@@ -188,18 +185,15 @@ export const createWorkloadNotification = (
     return `${hours}h${mins > 0 ? ` ${mins}m` : ''}`;
   };
   
-  const notification: Notification = {
-    id: `workload-${Date.now()}`,
+  const notification: Omit<Notification, 'id' | 'timestamp' | 'read'> = {
     type: 'workloadWarning',
     title: 'Quá tải công việc hôm nay',
     message: `Bạn cần ${formatMinutes(requiredMinutes)} để hoàn thành tất cả task, nhưng chỉ có ${formatMinutes(availableMinutes)} trong ngày. Thiếu ${formatMinutes(overloadedMinutes)}.`,
-    timestamp: new Date(),
-    read: false,
     priority: 'high',
     actionRequired: true
   };
   
-  addNotification(notification);
+  useNotificationStore.getState().addNotification(notification);
 };
 
 // Create a system notification
@@ -208,51 +202,42 @@ export const createSystemNotification = (
   message: string,
   priority: 'high' | 'medium' | 'low' | 'critical' = 'medium'
 ): void => {
-  const notification: Notification = {
-    id: `system-${Date.now()}`,
+  const notification: Omit<Notification, 'id' | 'timestamp' | 'read'> = {
     type: 'system',
     title,
     message,
-    timestamp: new Date(),
-    read: false,
     priority
   };
   
-  addNotification(notification);
+  useNotificationStore.getState().addNotification(notification);
 };
 
 // Create a pomodoro completion notification
 export const createPomodoroCompleteNotification = (
   taskTitle?: string
 ): void => {
-  const notification: Notification = {
-    id: `pomodoro-complete-${Date.now()}`,
+  const notification: Omit<Notification, 'id' | 'timestamp' | 'read'> = {
     type: 'pomodoroComplete',
     title: 'Phiên Pomodoro hoàn thành',
     message: taskTitle 
       ? `Bạn đã hoàn thành phiên tập trung cho task "${taskTitle}". Hãy nghỉ ngơi!`
       : 'Bạn đã hoàn thành phiên tập trung. Hãy nghỉ ngơi!',
-    timestamp: new Date(),
-    read: false,
     priority: 'medium'
   };
   
-  addNotification(notification);
+  useNotificationStore.getState().addNotification(notification);
 };
 
 // Create a break completion notification
 export const createBreakCompleteNotification = (): void => {
-  const notification: Notification = {
-    id: `break-complete-${Date.now()}`,
+  const notification: Omit<Notification, 'id' | 'timestamp' | 'read'> = {
     type: 'breakComplete',
     title: 'Hết giờ nghỉ',
     message: 'Thời gian nghỉ đã kết thúc. Sẵn sàng cho phiên tập trung tiếp theo?',
-    timestamp: new Date(),
-    read: false,
     priority: 'medium'
   };
   
-  addNotification(notification);
+  useNotificationStore.getState().addNotification(notification);
 };
 
 // Create an achievement notification
@@ -260,15 +245,12 @@ export const createAchievementNotification = (
   achievementTitle: string,
   achievementDescription: string
 ): void => {
-  const notification: Notification = {
-    id: `achievement-${Date.now()}`,
+  const notification: Omit<Notification, 'id' | 'timestamp' | 'read'> = {
     type: 'achievement',
-    title: 'Thành tích mới!',
-    message: `${achievementTitle}: ${achievementDescription}`,
-    timestamp: new Date(),
-    read: false,
+    title: `Thành tựu mới: ${achievementTitle}`,
+    message: achievementDescription,
     priority: 'medium'
   };
-  
-  addNotification(notification);
+
+  useNotificationStore.getState().addNotification(notification);
 };

@@ -185,40 +185,32 @@ class NotificationManager {
 
         const now = new Date();
         
-        // Global rate limiting - maximum 1 notification per 5 seconds
+        // Minimal delay between notifications (1 second) - KHÔNG BLOCK, CHỈ DELAY
         if (this.globalLastNotificationTime) {
           const timeSinceLastGlobal = now.getTime() - this.globalLastNotificationTime.getTime();
-          if (timeSinceLastGlobal < 5 * 1000) {
-            console.log(`[NOTIFICATION DEBUG] Global rate limiting - waiting ${5 - timeSinceLastGlobal/1000}s`);
-            // Wait before processing next notification
-            setTimeout(() => this.processNotificationQueue(), 5 * 1000 - timeSinceLastGlobal);
-            break;
+          if (timeSinceLastGlobal < 1000) {
+            // Chờ 1 giây rồi tiếp tục, KHÔNG SKIP
+            console.log(`[NOTIFICATION DEBUG] Small delay - waiting ${1 - timeSinceLastGlobal/1000}s`);
+            await new Promise(resolve => setTimeout(resolve, 1000 - timeSinceLastGlobal));
           }
         }
 
-        // Specific rate limiting for same type/title
-        const notificationKey = `${notification.type}-${notification.title}`;
-        const lastShown = this.lastNotificationTimes.get(notificationKey);
-        
-        if (lastShown) {
-          const timeSinceLastShown = now.getTime() - lastShown.getTime();
-          // Minimum 30 seconds between similar notifications
-          if (timeSinceLastShown < 30 * 1000) {
-            console.log(`[NOTIFICATION DEBUG] Specific rate limiting - skipping: ${notificationKey}`);
-            continue; // Skip this notification
-          }
+        // Specific rate limiting CHỈ cho EXACT duplicate (cùng ID)
+        const duplicateInQueue = this.notificationQueue.some(n => n.id === notification.id);
+        if (duplicateInQueue) {
+          console.log(`[NOTIFICATION DEBUG] Skipping duplicate ID: ${notification.id}`);
+          continue; // Skip chỉ khi có duplicate ID
         }
 
         // Show the notification
         await this.showNotificationImmediate(notification);
         
-        // Update timestamps
-        this.globalLastNotificationTime = now;
-        this.lastNotificationTimes.set(notificationKey, now);
+        // Update timestamp
+        this.globalLastNotificationTime = new Date();
 
-        // Small delay between notifications for better UX
+        // Small delay between notifications for smooth UX (không block queue)
         if (this.notificationQueue.length > 0) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          await new Promise(resolve => setTimeout(resolve, 500)); // 0.5s delay
         }
       }
     } catch (error) {
@@ -228,7 +220,7 @@ class NotificationManager {
       
       // Check if more notifications were added while processing
       if (this.notificationQueue.length > 0) {
-        setTimeout(() => this.processNotificationQueue(), 1000);
+        setTimeout(() => this.processNotificationQueue(), 100);
       }
     }
   }

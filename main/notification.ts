@@ -66,6 +66,9 @@ class NotificationManager {
   private lastChecks: Record<string, Date> = {};
   private acknowledgedNotifications: Set<string> = new Set();
   private lastNotificationTimes: Map<string, Date> = new Map();
+  private globalLastNotificationTime: Date | null = null;
+  private notificationQueue: NotificationData[] = [];
+  private isProcessingQueue: boolean = false;
 
   constructor() {
     this.loadConfig();
@@ -74,9 +77,14 @@ class NotificationManager {
 
   private loadConfig() {
     try {
-      const savedConfig = localStorage.getItem('notificationConfig');
-      if (savedConfig) {
-        this.config = { ...this.config, ...JSON.parse(savedConfig) };
+      const fs = require('fs');
+      const path = require('path');
+      const { app } = require('electron');
+      
+      const configPath = path.join(app.getPath('userData'), 'notificationConfig.json');
+      if (fs.existsSync(configPath)) {
+        const data = fs.readFileSync(configPath, 'utf8');
+        this.config = { ...this.config, ...JSON.parse(data) };
       }
     } catch (error) {
       console.error('Failed to load notification config:', error);
@@ -85,7 +93,16 @@ class NotificationManager {
 
   private saveConfig() {
     try {
-      localStorage.setItem('notificationConfig', JSON.stringify(this.config));
+      const fs = require('fs');
+      const path = require('path');
+      const { app } = require('electron');
+      
+      const configPath = path.join(app.getPath('userData'), 'notificationConfig.json');
+      const dir = path.dirname(configPath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      fs.writeFileSync(configPath, JSON.stringify(this.config, null, 2), 'utf8');
     } catch (error) {
       console.error('Failed to save notification config:', error);
     }
@@ -131,8 +148,7 @@ class NotificationManager {
   }
 
   public async showNotification(notification: NotificationData): Promise<void> {
-    console.log(`[NOTIFICATION DEBUG] Attempting to show: ${notification.type} - ${notification.title}`);
-    console.log(`[NOTIFICATION DEBUG] Call stack:`, new Error().stack?.split('\n').slice(1, 5));
+    console.log(`[NOTIFICATION DEBUG] Queuing notification: ${notification.type} - ${notification.title}`);
     
     if (!this.shouldShowNotification(notification.type)) {
       console.log(`[NOTIFICATION DEBUG] Blocked by config for type: ${notification.type}`);
@@ -145,27 +161,97 @@ class NotificationManager {
       return;
     }
 
-    // Rate limiting - prevent too many notifications of same type
-    const now = new Date();
-    const notificationKey = `${notification.type}-${notification.title}`;
-    const lastShown = this.lastNotificationTimes?.get(notificationKey);
+    // Add to queue for processing
+    this.notificationQueue.push(notification);
     
-    if (lastShown) {
-      const timeSinceLastShown = now.getTime() - lastShown.getTime();
-      // Minimum 30 seconds between similar notifications
-      if (timeSinceLastShown < 30 * 1000) {
-        console.log(`[NOTIFICATION DEBUG] Rate limiting notification: ${notificationKey}`);
-        return;
+    // Process queue if not already processing
+    if (!this.isProcessingQueue) {
+      this.processNotificationQueue();
+    }
+  }
+
+  private async processNotificationQueue(): Promise<void> {
+    if (this.isProcessingQueue || this.notificationQueue.length === 0) {
+      return;
+    }
+
+    this.isProcessingQueue = true;
+
+    try {
+      while (this.notificationQueue.length > 0) {
+        // Get next notification (prioritize by priority level)
+        const notification = this.getNextNotificationFromQueue();
+        if (!notification) break;
+
+        const now = new Date();
+        
+        // Global rate limiting - maximum 1 notification per 5 seconds
+        if (this.globalLastNotificationTime) {
+          const timeSinceLastGlobal = now.getTime() - this.globalLastNotificationTime.getTime();
+          if (timeSinceLastGlobal < 5 * 1000) {
+            console.log(`[NOTIFICATION DEBUG] Global rate limiting - waiting ${5 - timeSinceLastGlobal/1000}s`);
+            // Wait before processing next notification
+            setTimeout(() => this.processNotificationQueue(), 5 * 1000 - timeSinceLastGlobal);
+            break;
+          }
+        }
+
+        // Specific rate limiting for same type/title
+        const notificationKey = `${notification.type}-${notification.title}`;
+        const lastShown = this.lastNotificationTimes.get(notificationKey);
+        
+        if (lastShown) {
+          const timeSinceLastShown = now.getTime() - lastShown.getTime();
+          // Minimum 30 seconds between similar notifications
+          if (timeSinceLastShown < 30 * 1000) {
+            console.log(`[NOTIFICATION DEBUG] Specific rate limiting - skipping: ${notificationKey}`);
+            continue; // Skip this notification
+          }
+        }
+
+        // Show the notification
+        await this.showNotificationImmediate(notification);
+        
+        // Update timestamps
+        this.globalLastNotificationTime = now;
+        this.lastNotificationTimes.set(notificationKey, now);
+
+        // Small delay between notifications for better UX
+        if (this.notificationQueue.length > 0) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+    } catch (error) {
+      console.error('Error processing notification queue:', error);
+    } finally {
+      this.isProcessingQueue = false;
+      
+      // Check if more notifications were added while processing
+      if (this.notificationQueue.length > 0) {
+        setTimeout(() => this.processNotificationQueue(), 1000);
+      }
+    }
+  }
+
+  private getNextNotificationFromQueue(): NotificationData | null {
+    if (this.notificationQueue.length === 0) return null;
+
+    // Priority order: critical > high > medium > low
+    const priorityOrder = ['critical', 'high', 'medium', 'low'];
+    
+    for (const priority of priorityOrder) {
+      const index = this.notificationQueue.findIndex(n => n.priority === priority);
+      if (index !== -1) {
+        return this.notificationQueue.splice(index, 1)[0];
       }
     }
 
-    // Update last shown time
-    if (!this.lastNotificationTimes) {
-      this.lastNotificationTimes = new Map();
-    }
-    this.lastNotificationTimes.set(notificationKey, now);
+    // Fallback to first notification
+    return this.notificationQueue.shift() || null;
+  }
 
-    console.log(`[NOTIFICATION DEBUG] Showing notification: ${notificationKey}`);
+  private async showNotificationImmediate(notification: NotificationData): Promise<void> {
+    console.log(`[NOTIFICATION DEBUG] Showing notification: ${notification.type} - ${notification.title}`);
 
     // Add to in-app notification system
     this.addToInAppNotifications(notification);

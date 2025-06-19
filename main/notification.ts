@@ -65,6 +65,7 @@ class NotificationManager {
   private checkInterval: NodeJS.Timeout | null = null;
   private lastChecks: Record<string, Date> = {};
   private acknowledgedNotifications: Set<string> = new Set();
+  private lastNotificationTimes: Map<string, Date> = new Map();
 
   constructor() {
     this.loadConfig();
@@ -130,12 +131,41 @@ class NotificationManager {
   }
 
   public async showNotification(notification: NotificationData): Promise<void> {
-    if (!this.shouldShowNotification(notification.type)) return;
+    console.log(`[NOTIFICATION DEBUG] Attempting to show: ${notification.type} - ${notification.title}`);
+    console.log(`[NOTIFICATION DEBUG] Call stack:`, new Error().stack?.split('\n').slice(1, 5));
+    
+    if (!this.shouldShowNotification(notification.type)) {
+      console.log(`[NOTIFICATION DEBUG] Blocked by config for type: ${notification.type}`);
+      return;
+    }
 
     // Check if this notification has been acknowledged
     if (this.acknowledgedNotifications.has(notification.id)) {
+      console.log(`[NOTIFICATION DEBUG] Already acknowledged: ${notification.id}`);
       return;
     }
+
+    // Rate limiting - prevent too many notifications of same type
+    const now = new Date();
+    const notificationKey = `${notification.type}-${notification.title}`;
+    const lastShown = this.lastNotificationTimes?.get(notificationKey);
+    
+    if (lastShown) {
+      const timeSinceLastShown = now.getTime() - lastShown.getTime();
+      // Minimum 30 seconds between similar notifications
+      if (timeSinceLastShown < 30 * 1000) {
+        console.log(`[NOTIFICATION DEBUG] Rate limiting notification: ${notificationKey}`);
+        return;
+      }
+    }
+
+    // Update last shown time
+    if (!this.lastNotificationTimes) {
+      this.lastNotificationTimes = new Map();
+    }
+    this.lastNotificationTimes.set(notificationKey, now);
+
+    console.log(`[NOTIFICATION DEBUG] Showing notification: ${notificationKey}`);
 
     // Add to in-app notification system
     this.addToInAppNotifications(notification);
@@ -147,6 +177,7 @@ class NotificationManager {
 
     // Play sound if enabled
     if (this.config.sound) {
+      console.log(`[NOTIFICATION DEBUG] Playing sound for: ${notification.priority}`);
       this.playNotificationSound(notification.priority);
     }
   }
@@ -248,6 +279,10 @@ class NotificationManager {
 
   private startPeriodicChecks() {
     if (this.checkInterval) return;
+    
+    // TEMPORARILY DISABLE PERIODIC CHECKS TO FIX LOOP
+    console.log('Periodic notification checks DISABLED to prevent loop');
+    return;
     
     const intervalMs = this.config.checkInterval * 60 * 1000;
     this.checkInterval = setInterval(() => {

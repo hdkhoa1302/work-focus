@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider, useAuth } from './components/auth/AuthProvider';
+import { AppProvider } from './store/AppContext';
 import AuthScreen from './components/auth/AuthScreen';
 import Sidebar from './components/Sidebar';
 import { Dashboard, ProjectsPage, ReportsPage, SettingsPage } from './pages';
@@ -12,7 +13,8 @@ import ChatWidget from './components/ChatWidget';
 import EncouragementModal from './components/EncouragementModal';
 import { AiOutlineMoon, AiOutlineSun, AiOutlineBell, AiOutlineUser, AiOutlineMenu, AiOutlineClose } from 'react-icons/ai';
 import { FiLogOut } from 'react-icons/fi';
-import { getTasks, Task, getEncouragement } from './services/api';
+import { useTimer } from './hooks/useTimer';
+import { useTasks } from './hooks/useTasks';
 import { getConfig as apiGetConfig } from './services/api';
 import useLanguage from './hooks/useLanguage';
 
@@ -26,31 +28,16 @@ function AppContent() {
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [showFloatingTimer, setShowFloatingTimer] = useState(false);
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [selectedTaskId, setSelectedTaskId] = useState<string>('');
   
   // Encouragement modal state
   const [showEncouragement, setShowEncouragement] = useState(false);
   const [completedTask, setCompletedTask] = useState<{ id: string; title: string } | null>(null);
-  
-  // Timer state
-  const [remaining, setRemaining] = useState<number>(25 * 60 * 1000);
-  const [mode, setMode] = useState<'focus' | 'break'>('focus');
-  const [isRunning, setIsRunning] = useState<boolean>(false);
-  const [config, setConfig] = useState<{ focus: number; break: number }>({ focus: 25, break: 5 });
 
   useEffect(() => {
     localStorage.setItem('darkMode', JSON.stringify(isDark));
     if (isDark) document.documentElement.classList.add('dark');
     else document.documentElement.classList.remove('dark');
   }, [isDark]);
-
-  useEffect(() => {
-    if (user) {
-      fetchTasks();
-      fetchConfig();
-    }
-  }, [user]);
 
   // Close mobile sidebar when clicking outside
   useEffect(() => {
@@ -66,95 +53,7 @@ function AppContent() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showMobileSidebar]);
 
-  const fetchTasks = async () => {
-    try {
-      const tasksData = await getTasks();
-      setTasks(tasksData);
-    } catch (error) {
-      console.error('Failed to fetch tasks:', error);
-    }
-  };
-
-  const fetchConfig = async () => {
-    try {
-      const data = await apiGetConfig();
-      if (data.pomodoro) {
-        setConfig(data.pomodoro);
-        setRemaining(data.pomodoro.focus * 60 * 1000);
-      }
-    } catch (err) {
-      console.error('Failed to fetch config:', err);
-    }
-  };
-
-  const handleStartTask = (taskId: string) => {
-    setSelectedTaskId(taskId);
-    setMode('focus');
-    const duration = config.focus * 60 * 1000;
-    setRemaining(duration);
-    setIsRunning(true);
-    window.ipc?.send('timer-start', { type: 'focus', duration, taskId });
-  };
-
-  const handleTimerStart = () => {
-    if (mode === 'focus' && !selectedTaskId) {
-      alert(t('timer.selectTask'));
-      return;
-    }
-    setIsRunning(true);
-    window.ipc?.send('timer-start', {
-      type: mode,
-      duration: remaining || config[mode] * 60 * 1000,
-      taskId: mode === 'focus' ? selectedTaskId : undefined
-    });
-  };
-
-  const handleTimerPause = () => {
-    window.ipc?.send('timer-pause');
-  };
-
-  const handleTimerResume = () => {
-    setIsRunning(true);
-    window.ipc?.send('timer-resume');
-  };
-
-  // Thêm listener IPC để cập nhật state timer
-  useEffect(() => {
-    const onTick = (_: any, ms: number) => setRemaining(ms);
-    const onDone = (_: any, { type }: any) => {
-      setIsRunning(false);
-      fetchTasks();
-      window.dispatchEvent(new Event('tasks-updated'));
-      if (type === 'focus') {
-        const breakDuration = config.break * 60 * 1000;
-        setMode('break');
-        setRemaining(breakDuration);
-      }
-    };
-    const onPaused = (_: any, ms: number) => { setIsRunning(false); setRemaining(ms); };
-    window.ipc?.on('timer-tick', onTick);
-    window.ipc?.on('timer-done', onDone);
-    window.ipc?.on('timer-paused', onPaused);
-    return () => {
-      window.ipc?.removeListener('timer-tick', onTick);
-      window.ipc?.removeListener('timer-done', onDone);
-      window.ipc?.removeListener('timer-paused', onPaused);
-    };
-  }, [config]);
-
-  // Thêm listener cho sự kiện start-task từ Dashboard/TasksPage
-  useEffect(() => {
-    const onStartTaskEvent = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      handleStartTask(detail.taskId);
-    };
-    window.addEventListener('start-task', onStartTaskEvent);
-    return () => {
-      window.removeEventListener('start-task', onStartTaskEvent);
-    };
-  }, [config]);
-
-  // Thêm listener cho sự kiện create-task để mở modal tạo công việc
+  // Listen for create-task event
   useEffect(() => {
     const onCreateTaskEvent = () => {
       setShowTaskModal(true);
@@ -165,7 +64,7 @@ function AppContent() {
     };
   }, []);
 
-  // Thêm listener cho sự kiện task-completed để hiển thị encouragement
+  // Listen for task-completed event
   useEffect(() => {
     const onTaskCompleted = (e: Event) => {
       const detail = (e as CustomEvent).detail;
@@ -178,8 +77,6 @@ function AppContent() {
     };
   }, []);
 
-  const selectedTask = tasks.find(task => task._id === selectedTaskId);
-
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
@@ -191,6 +88,84 @@ function AppContent() {
   if (!user) {
     return <AuthScreen />;
   }
+
+  return (
+    <AppProvider>
+      <AppContentWithStore 
+        isDark={isDark}
+        setIsDark={setIsDark}
+        showTaskModal={showTaskModal}
+        setShowTaskModal={setShowTaskModal}
+        showFloatingTimer={showFloatingTimer}
+        setShowFloatingTimer={setShowFloatingTimer}
+        showMobileSidebar={showMobileSidebar}
+        setShowMobileSidebar={setShowMobileSidebar}
+        showEncouragement={showEncouragement}
+        setShowEncouragement={setShowEncouragement}
+        completedTask={completedTask}
+        setCompletedTask={setCompletedTask}
+        user={user}
+        logout={logout}
+        t={t}
+      />
+    </AppProvider>
+  );
+}
+
+interface AppContentWithStoreProps {
+  isDark: boolean;
+  setIsDark: (dark: boolean) => void;
+  showTaskModal: boolean;
+  setShowTaskModal: (show: boolean) => void;
+  showFloatingTimer: boolean;
+  setShowFloatingTimer: (show: boolean) => void;
+  showMobileSidebar: boolean;
+  setShowMobileSidebar: (show: boolean) => void;
+  showEncouragement: boolean;
+  setShowEncouragement: (show: boolean) => void;
+  completedTask: { id: string; title: string } | null;
+  setCompletedTask: (task: { id: string; title: string } | null) => void;
+  user: any;
+  logout: () => void;
+  t: (key: string) => string;
+}
+
+function AppContentWithStore({
+  isDark,
+  setIsDark,
+  showTaskModal,
+  setShowTaskModal,
+  showFloatingTimer,
+  setShowFloatingTimer,
+  showMobileSidebar,
+  setShowMobileSidebar,
+  showEncouragement,
+  setShowEncouragement,
+  completedTask,
+  setCompletedTask,
+  user,
+  logout,
+  t
+}: AppContentWithStoreProps) {
+  const timer = useTimer();
+  const { addTask, getSelectedTask } = useTasks();
+
+  // Load timer config on mount
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const data = await apiGetConfig();
+        if (data.pomodoro) {
+          timer.setConfig(data.pomodoro);
+        }
+      } catch (err) {
+        console.error('Failed to fetch config:', err);
+      }
+    };
+    fetchConfig();
+  }, []);
+
+  const selectedTask = getSelectedTask();
 
   return (
     <Router>
@@ -287,12 +262,12 @@ function AppContent() {
                 {/* Compact Timer */}
                 <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-3 transition-colors duration-200">
                   <CompactTimerCard
-                    remaining={remaining}
-                    mode={mode}
-                    isRunning={isRunning}
-                    onStart={handleTimerStart}
-                    onPause={handleTimerPause}
-                    onResume={handleTimerResume}
+                    remaining={timer.remaining}
+                    mode={timer.mode}
+                    isRunning={timer.isRunning}
+                    onStart={timer.start}
+                    onPause={timer.pause}
+                    onResume={timer.resume}
                     onExpand={() => setShowFloatingTimer(true)}
                     selectedTaskTitle={selectedTask?.title}
                   />
@@ -316,20 +291,20 @@ function AppContent() {
                 isOpen={showTaskModal}
                 onClose={() => setShowTaskModal(false)}
                 onSave={(task) => {
-                  setTasks(prev => [task, ...prev]);
-                  fetchTasks();
+                  // Task is already added to store via the hook
+                  setShowTaskModal(false);
                 }}
               />
 
               {/* Floating Timer */}
               {showFloatingTimer && (
                 <FloatingTimer
-                  remaining={remaining}
-                  mode={mode}
-                  isRunning={isRunning}
-                  onStart={handleTimerStart}
-                  onPause={handleTimerPause}
-                  onResume={handleTimerResume}
+                  remaining={timer.remaining}
+                  mode={timer.mode}
+                  isRunning={timer.isRunning}
+                  onStart={timer.start}
+                  onPause={timer.pause}
+                  onResume={timer.resume}
                   onClose={() => setShowFloatingTimer(false)}
                   selectedTaskTitle={selectedTask?.title}
                 />

@@ -1,17 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { createTask, Task, getProjects, Project } from '../services/api';
 import { AiOutlinePlus, AiOutlineCalendar, AiOutlineFire, AiOutlineClose, AiOutlineTag } from 'react-icons/ai';
 import TipTapEditor from './TipTapEditor';
+import { useProjects } from '../hooks/useProjects';
+import { useTasks } from '../hooks/useTasks';
 import useLanguage from '../hooks/useLanguage';
 
 interface TaskFormModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (task: Task) => void;
+  onSave: (task: any) => void;
 }
 
 const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSave }) => {
   const { t } = useLanguage();
+  const { projects } = useProjects();
+  const { addTask } = useTasks();
+  
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -20,30 +24,21 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSave }
     estimatedPomodoros: 1,
     tags: [] as string[]
   });
-  const [projects, setProjects] = useState<Project[]>([]);
-  // State lưu projectId, sẽ cập nhật khi modal mở
+  
   const [projectId, setProjectId] = useState<string>('');
-  // Kiểm tra có context dự án hay không
-  const isProjectFixed = Boolean(localStorage.getItem('selectedProjectId'));
   const [newTag, setNewTag] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Load projects khi modal mở
+  // Check if there's a fixed project context
+  const isProjectFixed = Boolean(localStorage.getItem('selectedProjectId'));
+
   useEffect(() => {
     if (!isOpen) return;
-    // Cập nhật projectId từ localStorage khi modal mở
+    
+    // Set projectId from localStorage if available
     const fixedId = localStorage.getItem('selectedProjectId');
     setProjectId(fixedId || '');
-    const loadProjects = async () => {
-      try {
-        const data = await getProjects();
-        setProjects(data);
-      } catch (err) {
-        console.error('Failed to load projects', err);
-      }
-    };
-    loadProjects();
   }, [isOpen]);
 
   const validateForm = () => {
@@ -69,9 +64,10 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSave }
       setErrors(prev => ({ ...prev, project: t('tasks.projectRequired') }));
       return;
     }
+    
     setIsSubmitting(true);
     try {
-      const newTask = await createTask({
+      const newTask = await addTask({
         title: formData.title,
         description: formData.description,
         priority: formData.priority,
@@ -82,7 +78,6 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSave }
       });
       
       onSave(newTask);
-      window.dispatchEvent(new Event('tasks-updated'));
       handleClose();
     } catch (error) {
       console.error('Failed to create task:', error);

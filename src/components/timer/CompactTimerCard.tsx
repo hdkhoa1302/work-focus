@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { AiOutlineFire, AiOutlineCoffee, AiOutlineProject, AiOutlineCheckSquare } from 'react-icons/ai';
 import { FiPlay, FiPause, FiRefreshCw, FiMaximize2, FiChevronDown } from 'react-icons/fi';
-import { getProjects, getTasks, Task as ApiTask, Project } from '../../services/api';
+import { useAppStore } from '../../store/AppContext';
+import { useProjects } from '../../hooks/useProjects';
+import { useTasks } from '../../hooks/useTasks';
 
 interface CompactTimerCardProps {
   remaining: number;
@@ -24,83 +26,41 @@ const CompactTimerCard: React.FC<CompactTimerCardProps> = ({
   onExpand,
   selectedTaskTitle
 }) => {
-  // State cho project và task
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [selectedProjectId, setSelectedProjectId] = useState<string>('');
-  const [tasks, setTasks] = useState<ApiTask[]>([]);
-  const [selectedTaskId, setSelectedTaskId] = useState<string>('');
+  const { state, dispatch } = useAppStore();
+  const { projects } = useProjects();
+  const { tasks, getTasksByProject } = useTasks();
+  
   const [showProjectDropdown, setShowProjectDropdown] = useState(false);
   const [showTaskDropdown, setShowTaskDropdown] = useState(false);
 
-  // Xử lý class dựa trên mode
+  const { timer } = state;
   const isFocus = mode === 'focus';
   const minutes = Math.floor(remaining / 1000 / 60).toString().padStart(2, '0');
   const seconds = Math.floor((remaining / 1000) % 60).toString().padStart(2, '0');
 
-  // Fetch dự án khi component mount
-  useEffect(() => {
-    const loadProjects = () => {
-      getProjects()
-        .then(setProjects)
-        .catch(err => console.error('Failed to fetch projects', err));
-    };
-    loadProjects();
-    window.ipc?.on('timer-done', loadProjects);
-    return () => {
-      window.ipc?.removeListener('timer-done', loadProjects);
-    };
-  }, []);
-
-  // Fetch tasks khi chọn project
-  useEffect(() => {
-    if (!selectedProjectId) { 
-      setTasks([]);
-      setSelectedTaskId('');
-      return; 
-    }
-    const fetchTasksByProject = () => {
-      getTasks(selectedProjectId)
-        .then(setTasks)
-        .catch(err => console.error('Failed to fetch tasks', err));
-    };
-    fetchTasksByProject();
-    window.addEventListener('tasks-updated', fetchTasksByProject);
-    window.ipc?.on('timer-done', fetchTasksByProject);
-    return () => {
-      window.removeEventListener('tasks-updated', fetchTasksByProject);
-      window.ipc?.removeListener('timer-done', fetchTasksByProject);
-    };
-  }, [selectedProjectId]);
-
-  // Lắng nghe event chọn project hoặc task từ ngoài
-  useEffect(() => {
-    const handleSelect = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (detail.projectId) {
-        setSelectedProjectId(detail.projectId);
-      }
-      if (detail.taskId) {
-        setSelectedTaskId(detail.taskId);
-      }
-    };
-    window.addEventListener('start-task', handleSelect);
-    return () => {
-      window.removeEventListener('start-task', handleSelect);
-    };
-  }, []);
-
-  const selectedProject = projects.find(p => p._id === selectedProjectId);
-  const selectedTask = tasks.find(t => t._id === selectedTaskId);
-  const availableTasks = tasks.filter(task => task.status !== 'done');
+  const selectedProject = projects.find(p => p._id === timer.selectedProjectId);
+  const selectedTask = tasks.find(t => t._id === timer.selectedTaskId);
+  const availableTasks = timer.selectedProjectId 
+    ? getTasksByProject(timer.selectedProjectId).filter(task => task.status !== 'done')
+    : [];
 
   const handleStartTimer = () => {
-    if (isFocus && selectedProjectId && selectedTaskId) {
-      window.dispatchEvent(new CustomEvent('start-task', { 
-        detail: { projectId: selectedProjectId, taskId: selectedTaskId } 
-      }));
+    if (isFocus && timer.selectedProjectId && timer.selectedTaskId) {
+      onStart();
     } else if (!isFocus) {
       onStart();
     }
+  };
+
+  const handleProjectSelect = (projectId: string) => {
+    dispatch({ type: 'TIMER_SET_SELECTED_PROJECT', payload: projectId });
+    dispatch({ type: 'TIMER_SET_SELECTED_TASK', payload: null });
+    setShowProjectDropdown(false);
+  };
+
+  const handleTaskSelect = (taskId: string) => {
+    dispatch({ type: 'TIMER_SET_SELECTED_TASK', payload: taskId });
+    setShowTaskDropdown(false);
   };
 
   return (
@@ -163,11 +123,7 @@ const CompactTimerCard: React.FC<CompactTimerCardProps> = ({
                   {projects.map(project => (
                     <button
                       key={project._id}
-                      onClick={() => {
-                        setSelectedProjectId(project._id);
-                        setSelectedTaskId('');
-                        setShowProjectDropdown(false);
-                      }}
+                      onClick={() => handleProjectSelect(project._id)}
                       className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm text-gray-900 dark:text-gray-100 border-b border-gray-100 dark:border-gray-700 last:border-b-0"
                     >
                       <div className="flex items-center gap-2">
@@ -189,13 +145,13 @@ const CompactTimerCard: React.FC<CompactTimerCardProps> = ({
             <div className="relative flex-1">
               <button
                 onClick={() => setShowTaskDropdown(!showTaskDropdown)}
-                disabled={!selectedProjectId}
+                disabled={!timer.selectedProjectId}
                 className="w-full flex items-center justify-between px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <div className="flex items-center gap-2 min-w-0">
                   <AiOutlineCheckSquare className="w-4 h-4 text-green-500 flex-shrink-0" />
                   <span className="truncate text-gray-900 dark:text-gray-100">
-                    {selectedTask?.title || (selectedProjectId ? 'Chọn công việc' : 'Chọn dự án trước')}
+                    {selectedTask?.title || (timer.selectedProjectId ? 'Chọn công việc' : 'Chọn dự án trước')}
                   </span>
                 </div>
                 <FiChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${
@@ -203,15 +159,12 @@ const CompactTimerCard: React.FC<CompactTimerCardProps> = ({
                 }`} />
               </button>
               
-              {showTaskDropdown && selectedProjectId && (
+              {showTaskDropdown && timer.selectedProjectId && (
                 <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto">
                   {availableTasks.map(task => (
                     <button
                       key={task._id}
-                      onClick={() => {
-                        setSelectedTaskId(task._id);
-                        setShowTaskDropdown(false);
-                      }}
+                      onClick={() => handleTaskSelect(task._id)}
                       className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm text-gray-900 dark:text-gray-100 border-b border-gray-100 dark:border-gray-700 last:border-b-0"
                     >
                       <div className="flex items-center gap-2">
@@ -241,9 +194,9 @@ const CompactTimerCard: React.FC<CompactTimerCardProps> = ({
           {!isRunning ? (
             <button
               onClick={handleStartTimer}
-              disabled={isFocus && (!selectedProjectId || !selectedTaskId)}
+              disabled={isFocus && (!timer.selectedProjectId || !timer.selectedTaskId)}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
-                (isFocus ? (selectedProjectId && selectedTaskId) : true)
+                (isFocus ? (timer.selectedProjectId && timer.selectedTaskId) : true)
                   ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white hover:from-green-600 hover:to-emerald-600 shadow-md hover:shadow-lg transform hover:scale-105'
                   : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
               }`}

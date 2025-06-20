@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { postAIChat, AIChatResponse, AIChatRequest, getConversations, createConversation, activateConversation, Conversation, Message, WhiteboardItem } from '../services/api';
+import { postAIChat, AIChatResponse, AIChatRequest, getConversations, createConversation, activateConversation, Conversation, Message } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import { AiOutlineMessage, AiOutlineClose, AiOutlineExpandAlt, AiOutlineBulb, AiOutlineCopy, AiOutlineCheck, AiOutlineArrowDown } from 'react-icons/ai';
 import MarkdownRenderer from './MarkdownRenderer';
+import useWhiteboardStore from '../stores/whiteboardStore';
 
 interface ChatWidgetProps {
   fullPage?: boolean;
@@ -17,7 +18,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingConversation, setIsLoadingConversation] = useState(false);
-  const [whiteboardItems, setWhiteboardItems] = useState<WhiteboardItem[]>([]);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -25,6 +25,11 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
   
   const endRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  
+  // Use the whiteboard store
+  const whiteboardItems = useWhiteboardStore(state => state.items);
+  const addWhiteboardItem = useWhiteboardStore(state => state.addItem);
+  const updateWhiteboardItem = useWhiteboardStore(state => state.updateItemByTitle);
 
   const toggleOpen = () => {
     const newOpenState = !open;
@@ -32,7 +37,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
     
     if (newOpenState) {
       loadConversations();
-      loadWhiteboard();
       // Focus to last message when opening
       setTimeout(() => {
         scrollToBottom();
@@ -101,35 +105,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
     } catch (error) {
       console.error('Failed to load conversations:', error);
     }
-  };
-
-  const loadWhiteboard = () => {
-    const savedWhiteboard = localStorage.getItem('ai-whiteboard');
-    if (savedWhiteboard) {
-      setWhiteboardItems(JSON.parse(savedWhiteboard));
-    }
-  };
-
-  const saveWhiteboard = (items: WhiteboardItem[]) => {
-    localStorage.setItem('ai-whiteboard', JSON.stringify(items));
-    setWhiteboardItems(items);
-  };
-
-  const addToWhiteboard = (item: Omit<WhiteboardItem, 'id' | 'createdAt'>) => {
-    const newItem: WhiteboardItem = {
-      ...item,
-      id: Date.now().toString(),
-      createdAt: new Date()
-    };
-    const updatedItems = [...whiteboardItems, newItem];
-    saveWhiteboard(updatedItems);
-  };
-
-  const updateWhiteboardItem = (itemTitle: string, updates: Partial<WhiteboardItem>) => {
-    const updatedItems = whiteboardItems.map(item => 
-      item.title === itemTitle ? { ...item, ...updates } : item
-    );
-    saveWhiteboard(updatedItems);
   };
 
   const switchConversation = async (conversationId: string) => {
@@ -229,12 +204,12 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
 
       // Handle different response types
       if ((response.type === 'note' || response.type === 'decision') && response.data) {
-        addToWhiteboard(response.data);
+        addWhiteboardItem(response.data);
       }
 
       // Add to whiteboard if it's a project analysis
       if (response.type === 'project' && response.data) {
-        addToWhiteboard({
+        addWhiteboardItem({
           type: 'project',
           title: response.data.projectName,
           description: response.data.description,

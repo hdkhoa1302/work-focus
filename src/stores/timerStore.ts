@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { getConfig } from '../services/api';
+import { createPomodoroCompleteNotification, createBreakCompleteNotification, createInactivityNotification } from '../components/NotificationService';
+import useNotificationStore from './notificationStore';
 
 export type TimerMode = 'focus' | 'break';
 
@@ -11,6 +13,7 @@ interface TimerState {
   selectedTaskId: string | undefined;
   selectedProjectId: string | undefined;
   selectedTaskTitle: string | undefined;
+  lastTimerEndTime: Date | null;
   
   // Timer config
   config: {
@@ -27,9 +30,13 @@ interface TimerState {
   setRemaining: (ms: number) => void;
   setIsRunning: (isRunning: boolean) => void;
   setSelectedTask: (taskId?: string, projectId?: string, taskTitle?: string) => void;
+  timerCompleted: (type: TimerMode) => void;
   
   // Initialization
   initializeConfig: () => Promise<void>;
+  
+  // Inactivity check
+  checkInactivity: () => void;
 }
 
 const useTimerStore = create<TimerState>((set, get) => ({
@@ -40,6 +47,7 @@ const useTimerStore = create<TimerState>((set, get) => ({
   selectedTaskId: undefined,
   selectedProjectId: undefined,
   selectedTaskTitle: undefined,
+  lastTimerEndTime: null,
   
   config: {
     focus: 25,
@@ -80,7 +88,7 @@ const useTimerStore = create<TimerState>((set, get) => ({
     });
     
     // Update activity time
-    window.ipc?.send('user-activity');
+    useNotificationStore.getState().updateActivityTime();
   },
   
   pauseTimer: () => {
@@ -91,7 +99,7 @@ const useTimerStore = create<TimerState>((set, get) => ({
   resumeTimer: () => {
     set({ isRunning: true });
     window.ipc?.send('timer-resume');
-    window.ipc?.send('user-activity');
+    useNotificationStore.getState().updateActivityTime();
   },
   
   resetTimer: (mode) => {
@@ -133,6 +141,32 @@ const useTimerStore = create<TimerState>((set, get) => ({
     });
   },
   
+  timerCompleted: (type) => {
+    const store = get();
+    store.setIsRunning(false);
+    
+    // Record the time when timer completed
+    const now = new Date();
+    set({ lastTimerEndTime: now });
+    
+    // Switch to the other mode
+    const newMode = type === 'focus' ? 'break' : 'focus';
+    const duration = store.config[newMode] * 60 * 1000;
+    
+    store.setMode(newMode);
+    store.setRemaining(duration);
+    
+    // Show appropriate notification
+    if (type === 'focus') {
+      createPomodoroCompleteNotification(store.selectedTaskTitle);
+    } else {
+      createBreakCompleteNotification();
+    }
+    
+    // Update activity time
+    useNotificationStore.getState().updateActivityTime();
+  },
+  
   initializeConfig: async () => {
     try {
       const data = await getConfig();
@@ -145,6 +179,36 @@ const useTimerStore = create<TimerState>((set, get) => ({
     } catch (error) {
       console.error('Failed to fetch timer config:', error);
     }
+  },
+  
+  checkInactivity: () => {
+    const { lastTimerEndTime } = get();
+    if (!lastTimerEndTime) return;
+    
+    const now = new Date();
+    const diffMs = now.getTime() - lastTimerEndTime.getTime();
+    const diffMinutes = Math.floor(diffMs / (1000 * 60));
+    
+    // Check if inactive for more than 25 minutes since last timer ended
+    if (diffMinutes >= 25) {
+      // Check if we've already shown a notification recently
+      const lastNotificationTime = localStorage.getItem('lastInactivityNotificationTime');
+      if (lastNotificationTime) {
+        const lastNotification = new Date(lastNotificationTime);
+        const timeSinceLastNotification = (now.getTime() - lastNotification.getTime()) / (1000 * 60);
+        
+        // Only show notification once every 25 minutes
+        if (timeSinceLastNotification < 25) {
+          return;
+        }
+      }
+      
+      // Create inactivity notification
+      createInactivityNotification(diffMinutes);
+      
+      // Save notification time
+      localStorage.setItem('lastInactivityNotificationTime', now.toISOString());
+    }
   }
 }));
 
@@ -156,18 +220,7 @@ if (typeof window !== 'undefined' && window.ipc) {
   });
   
   window.ipc.on('timer-done', (_, { type }: { type: TimerMode }) => {
-    const store = useTimerStore.getState();
-    store.setIsRunning(false);
-    
-    // Switch to the other mode
-    const newMode = type === 'focus' ? 'break' : 'focus';
-    const duration = store.config[newMode] * 60 * 1000;
-    
-    store.setMode(newMode);
-    store.setRemaining(duration);
-    
-    // Update activity time
-    window.ipc?.send('user-activity');
+    useTimerStore.getState().timerCompleted(type);
   });
   
   window.ipc.on('timer-paused', (_, ms: number) => {
@@ -179,5 +232,13 @@ if (typeof window !== 'undefined' && window.ipc) {
 
 // Initialize config when the store is first used
 useTimerStore.getState().initializeConfig();
+
+// Set up periodic inactivity checks
+if (typeof window !== 'undefined') {
+  // Check for inactivity every 5 minutes
+  setInterval(() => {
+    useTimerStore.getState().checkInactivity();
+  }, 5 * 60 * 1000);
+}
 
 export default useTimerStore;

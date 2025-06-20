@@ -33,4 +33,4 @@ export interface NotificationConfig {
     end: string; // HH:MM
   };
   inactivityThreshold: number; // hours
-} 
+}

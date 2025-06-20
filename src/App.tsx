@@ -17,7 +17,9 @@ import { FiLogOut } from 'react-icons/fi';
 import { getTasks, Task, getEncouragement } from './services/api';
 import useTimerStore from './stores/timerStore';
 import NotificationBell from './components/NotificationBell';
-import useLanguage from './hooks/useLanguage';
+import useLanguage from '../hooks/useLanguage';
+import useNotificationStore from '../stores/notificationStore';
+import ActivityTracker from './components/ActivityTracker';
 
 function AppContent() {
   const { t } = useLanguage();
@@ -37,15 +39,12 @@ function AppContent() {
   
   // Use timer store
   const { 
-    remaining, 
-    mode, 
-    isRunning, 
     selectedTaskId,
-    startTimer,
-    pauseTimer,
-    resumeTimer,
     setSelectedTask
   } = useTimerStore();
+  
+  // Use notification store for activity tracking
+  const updateActivityTime = useNotificationStore(state => state.updateActivityTime);
 
   useEffect(() => {
     localStorage.setItem('darkMode', JSON.stringify(isDark));
@@ -58,9 +57,9 @@ function AppContent() {
       fetchTasks();
       
       // Update activity time when user logs in
-      window.ipc?.send('user-activity');
+      updateActivityTime();
     }
-  }, [user]);
+  }, [user, updateActivityTime]);
 
   // Close mobile sidebar when clicking outside
   useEffect(() => {
@@ -76,32 +75,24 @@ function AppContent() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showMobileSidebar]);
 
-  // Track user activity
-  useEffect(() => {
-    if (!user) return;
-    
-    const updateActivity = () => {
-      window.ipc?.send('user-activity');
-    };
-    
-    // Track user activity
-    window.addEventListener('mousemove', updateActivity);
-    window.addEventListener('keydown', updateActivity);
-    window.addEventListener('click', updateActivity);
-    
-    return () => {
-      window.removeEventListener('mousemove', updateActivity);
-      window.removeEventListener('keydown', updateActivity);
-      window.removeEventListener('click', updateActivity);
-    };
-  }, [user]);
-
   const fetchTasks = async () => {
     try {
       const tasksData = await getTasks();
       setTasks(tasksData);
     } catch (error) {
       console.error('Failed to fetch tasks:', error);
+    }
+  };
+
+  const handleStartTask = (taskId: string) => {
+    const task = tasks.find(t => t._id === taskId);
+    if (task) {
+      setSelectedTask(taskId, task.projectId, task.title);
+      useTimerStore.getState().startTimer({
+        taskId,
+        projectId: task.projectId,
+        taskTitle: task.title
+      });
     }
   };
 
@@ -136,25 +127,13 @@ function AppContent() {
       setShowEncouragement(true);
       
       // Update activity time when completing a task
-      window.ipc?.send('user-activity');
+      updateActivityTime();
     };
     window.addEventListener('task-completed', onTaskCompleted);
     return () => {
       window.removeEventListener('task-completed', onTaskCompleted);
     };
-  }, []);
-
-  const handleStartTask = (taskId: string) => {
-    const task = tasks.find(t => t._id === taskId);
-    if (task) {
-      setSelectedTask(taskId, task.projectId, task.title);
-      startTimer({
-        taskId,
-        projectId: task.projectId,
-        taskTitle: task.title
-      });
-    }
-  };
+  }, [updateActivityTime]);
 
   const handleTaskSelect = (taskId: string) => {
     const task = tasks.find(t => t._id === taskId);
@@ -165,7 +144,7 @@ function AppContent() {
       }));
       
       // Update activity time when selecting a task
-      window.ipc?.send('user-activity');
+      updateActivityTime();
     }
   };
 
@@ -174,7 +153,7 @@ function AppContent() {
     window.location.href = `/projects?id=${projectId}`;
     
     // Update activity time when selecting a project
-    window.ipc?.send('user-activity');
+    updateActivityTime();
   };
 
   if (isLoading) {
@@ -338,6 +317,9 @@ function AppContent() {
               
               {/* Inactivity Manager */}
               <InactivityManager userId={user.id} />
+              
+              {/* Activity Tracker */}
+              <ActivityTracker userId={user.id} />
 
               <ChatWidget />
             </>

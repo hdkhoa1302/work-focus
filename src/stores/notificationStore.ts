@@ -9,6 +9,7 @@ interface NotificationState {
   notifications: Notification[];
   config: NotificationConfig;
   unreadCount: number;
+  lastActivityTime: Date | null;
   
   // Actions
   addNotification: (notification: Omit<Notification, 'id' | 'timestamp' | 'read'>) => void;
@@ -23,6 +24,10 @@ interface NotificationState {
   fetchConfig: () => Promise<void>;
   updateConfig: (newConfig: Partial<NotificationConfig>) => Promise<void>;
   
+  // Activity tracking
+  updateActivityTime: () => void;
+  checkInactivity: () => void;
+  
   // Internal functions
   _hydrate: () => void;
   _recalculateUnread: () => void;
@@ -32,6 +37,7 @@ interface NotificationState {
 const useNotificationStore = create<NotificationState>((set, get) => ({
   notifications: [],
   unreadCount: 0,
+  lastActivityTime: new Date(),
   config: { // Default config, will be overwritten by fetchConfig
     enabled: true,
     sound: true,
@@ -142,8 +148,56 @@ const useNotificationStore = create<NotificationState>((set, get) => ({
     await window.ipc?.invoke('update-notification-config', updatedConfig);
   },
   
+  updateActivityTime: () => {
+    const now = new Date();
+    set({ lastActivityTime: now });
+    
+    // Also send to main process
+    window.ipc?.send('user-activity');
+    
+    // Save to localStorage for persistence
+    localStorage.setItem('lastActivityTime', now.toISOString());
+  },
+  
+  checkInactivity: () => {
+    const { lastActivityTime, config } = get();
+    if (!lastActivityTime) return;
+    
+    const now = new Date();
+    const diffMs = now.getTime() - lastActivityTime.getTime();
+    const diffMinutes = diffMs / (1000 * 60);
+    
+    // Check if inactive for more than 25 minutes (Pomodoro length)
+    if (diffMinutes >= 25) {
+      // Check if we've already shown a notification recently
+      const lastNotificationTime = localStorage.getItem('lastInactivityNotificationTime');
+      if (lastNotificationTime) {
+        const lastNotification = new Date(lastNotificationTime);
+        const timeSinceLastNotification = (now.getTime() - lastNotification.getTime()) / (1000 * 60);
+        
+        // Only show notification once every 25 minutes
+        if (timeSinceLastNotification < 25) {
+          return;
+        }
+      }
+      
+      // Create inactivity notification
+      get().addNotification({
+        type: 'inactivityWarning',
+        title: 'Cảnh báo không hoạt động',
+        message: `Bạn đã không thực hiện phiên Pomodoro nào trong ${Math.floor(diffMinutes)} phút. Hãy bắt đầu một phiên tập trung để duy trì năng suất!`,
+        priority: 'medium',
+        actionRequired: true
+      });
+      
+      // Save notification time
+      localStorage.setItem('lastInactivityNotificationTime', now.toISOString());
+    }
+  },
+  
   _hydrate: () => {
     try {
+      // Load notifications
       const savedNotifications = localStorage.getItem('notifications');
       if (savedNotifications) {
         const notifications = JSON.parse(savedNotifications).map((n: any) => ({
@@ -152,6 +206,12 @@ const useNotificationStore = create<NotificationState>((set, get) => ({
         }));
         set({ notifications });
         get()._recalculateUnread();
+      }
+      
+      // Load last activity time
+      const lastActivityTime = localStorage.getItem('lastActivityTime');
+      if (lastActivityTime) {
+        set({ lastActivityTime: new Date(lastActivityTime) });
       }
     } catch (error) {
       console.error("Failed to hydrate notifications from localStorage:", error);
@@ -197,14 +257,10 @@ const useNotificationStore = create<NotificationState>((set, get) => ({
       console.log('Complete task:', taskId);
     });
 
-    // Listen for new notifications from main process
-    // DISABLED TO PREVENT INFINITE LOOP - renderer handles notifications directly
-    /*
-    window.ipc.on('new-notification', (event, notification) => {
-      const store = get();
-      store.addNotification(notification);
+    // Listen for check-inactivity events
+    window.ipc.on('check-inactivity', () => {
+      get().checkInactivity();
     });
-    */
   },
 }));
 
@@ -215,4 +271,24 @@ useNotificationStore.getState().fetchConfig();
 // Setup IPC listeners
 useNotificationStore.getState()._setupIpcListeners();
 
-export default useNotificationStore; 
+// Set up periodic inactivity checks
+if (typeof window !== 'undefined') {
+  // Check for inactivity every 5 minutes
+  setInterval(() => {
+    useNotificationStore.getState().checkInactivity();
+  }, 5 * 60 * 1000);
+  
+  // Set up activity tracking
+  const updateActivity = () => {
+    useNotificationStore.getState().updateActivityTime();
+  };
+  
+  window.addEventListener('mousemove', updateActivity);
+  window.addEventListener('keydown', updateActivity);
+  window.addEventListener('click', updateActivity);
+  
+  // Initial activity update
+  updateActivity();
+}
+
+export default useNotificationStore;

@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { AiOutlineBell, AiOutlineClose, AiOutlineCheckCircle, AiOutlineWarning, AiOutlineCalendar, AiOutlineClockCircle, AiOutlineSetting, AiOutlineTrophy, AiOutlineEye, AiOutlineCheck, AiOutlinePause } from 'react-icons/ai';
-import { FiSettings } from 'react-icons/fi';
+import { AiOutlineBell, AiOutlineClose, AiOutlineCheckCircle, AiOutlineWarning, AiOutlineCalendar, AiOutlineClockCircle, AiOutlineSetting, AiOutlineTrophy, AiOutlineEye, AiOutlineCheck, AiOutlinePause, AiOutlineCoffee } from 'react-icons/ai';
+import { FiSettings, FiClock } from 'react-icons/fi';
 import NotificationSettings from './NotificationSettings';
 import useNotificationStore from '../stores/notificationStore';
 import { Notification } from '../types/notification';
+import useTimerStore from '../stores/timerStore';
 
 interface NotificationBellProps {
   onTaskSelect?: (taskId: string) => void;
@@ -23,6 +24,9 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ onTaskSelect, onPro
     deleteNotification,
     clearAll,
   } = useNotificationStore();
+  
+  // Get timer functions
+  const startTimer = useTimerStore(state => state.startTimer);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -86,6 +90,13 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ onTaskSelect, onPro
         break;
       case 'dismiss':
         deleteNotification(notification.id);
+        break;
+      case 'startFocus':
+        // Start a focus session
+        startTimer();
+        markAsRead(notification.id);
+        deleteNotification(notification.id);
+        setIsDropdownOpen(false);
         break;
     }
   };
@@ -185,6 +196,24 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ onTaskSelect, onPro
             </button>
           </div>
         );
+      case 'inactivityWarning':
+        return (
+          <div className="flex gap-1 mt-2">
+            <button
+              onClick={(e) => handleActionClick(e, notification, 'startFocus')}
+              className={`${baseClasses} bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-300`}
+            >
+              <FiClock className="inline w-3 h-3 mr-1" />
+              Bắt đầu tập trung
+            </button>
+            <button
+              onClick={(e) => handleActionClick(e, notification, 'dismiss')}
+              className={`${baseClasses} bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300`}
+            >
+              Bỏ qua
+            </button>
+          </div>
+        );
       default:
         return (
           <div className="flex gap-1 mt-2">
@@ -209,6 +238,7 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ onTaskSelect, onPro
       case 'pomodoroComplete': return <AiOutlineCheckCircle className={`${iconClass} text-green-500`} />;
       case 'breakComplete': return <AiOutlineClockCircle className={`${iconClass} text-green-500`} />;
       case 'achievement': return <AiOutlineTrophy className={`${iconClass} text-purple-500`} />;
+      case 'inactivityWarning': return <AiOutlineCoffee className={`${iconClass} text-orange-500`} />;
       case 'system': return <AiOutlineBell className={`${iconClass} text-gray-500`} />;
       default: return <AiOutlineBell className={`${iconClass} text-gray-500`} />;
     }

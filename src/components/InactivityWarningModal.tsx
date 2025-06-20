@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { AiOutlineClockCircle, AiOutlineWarning, AiOutlineClose, AiOutlineCoffee } from 'react-icons/ai';
 import { FiAlertTriangle, FiClock, FiCoffee } from 'react-icons/fi';
+import useTimerStore from '../stores/timerStore';
 
 interface InactivityWarningModalProps {
   isOpen: boolean;
   onClose: () => void;
-  inactiveHours: number;
+  inactiveMinutes: number;
   pendingTasks: Array<{ id: string; title: string }>;
   lastActivityTime: Date;
 }
@@ -13,7 +14,7 @@ interface InactivityWarningModalProps {
 const InactivityWarningModal: React.FC<InactivityWarningModalProps> = ({
   isOpen,
   onClose,
-  inactiveHours,
+  inactiveMinutes,
   pendingTasks,
   lastActivityTime
 }) => {
@@ -23,6 +24,9 @@ const InactivityWarningModal: React.FC<InactivityWarningModalProps> = ({
   const [animateShake, setAnimateShake] = useState(false);
   const [countdown, setCountdown] = useState(5);
   const [canClose, setCanClose] = useState(false);
+  
+  // Get timer functions from store
+  const startTimer = useTimerStore(state => state.startTimer);
 
   useEffect(() => {
     setIsValid(confirmText === 'Tôi đã hiểu');
@@ -54,7 +58,7 @@ const InactivityWarningModal: React.FC<InactivityWarningModalProps> = ({
       const acknowledged = savedAcknowledged ? JSON.parse(savedAcknowledged) : {};
       acknowledged[itemId] = {
         timestamp: new Date().toISOString(),
-        inactiveHours
+        inactiveMinutes
       };
       localStorage.setItem('acknowledgedInactivity', JSON.stringify(acknowledged));
       
@@ -62,16 +66,13 @@ const InactivityWarningModal: React.FC<InactivityWarningModalProps> = ({
       window.dispatchEvent(new CustomEvent('inactivity-acknowledged', {
         detail: {
           itemId,
-          inactiveHours,
+          inactiveMinutes,
           lastActivityTime
         }
       }));
       
       // Notify main process
       window.ipc?.send('acknowledge-notification', `inactivity-warning-${Date.now()}`);
-      
-      // Update last activity time
-      window.ipc?.send('user-activity');
       
       onClose();
       setConfirmText('');
@@ -81,6 +82,12 @@ const InactivityWarningModal: React.FC<InactivityWarningModalProps> = ({
       setAnimateShake(true);
       setTimeout(() => setAnimateShake(false), 500);
     }
+  };
+
+  const handleStartFocusSession = () => {
+    // Start a focus session without a specific task
+    startTimer();
+    onClose();
   };
 
   const formatTime = (date: Date) => {
@@ -122,7 +129,7 @@ const InactivityWarningModal: React.FC<InactivityWarningModalProps> = ({
             <AiOutlineWarning className="text-orange-500 text-xl mt-1 flex-shrink-0" />
             <div>
               <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-lg">
-                Bạn đã không hoạt động trong một thời gian dài!
+                Bạn đã không hoạt động trong một thời gian!
               </h3>
               <p className="text-gray-600 dark:text-gray-400 mt-1">
                 Lần cuối hoạt động: <strong>{formatTime(lastActivityTime)}</strong> ngày <strong>{formatDate(lastActivityTime)}</strong>
@@ -142,7 +149,7 @@ const InactivityWarningModal: React.FC<InactivityWarningModalProps> = ({
                 Bạn đã không thực hiện phiên Pomodoro nào trong:
               </div>
               <div className="text-lg font-bold text-orange-700 dark:text-orange-300">
-                {inactiveHours} giờ
+                {inactiveMinutes} phút
               </div>
             </div>
           </div>
@@ -166,6 +173,23 @@ const InactivityWarningModal: React.FC<InactivityWarningModalProps> = ({
               </div>
             </div>
           )}
+
+          <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg border border-green-200 dark:border-green-800">
+            <div className="flex items-start space-x-3">
+              <FiCoffee className="text-green-500 mt-1 flex-shrink-0" />
+              <div>
+                <p className="font-medium text-green-700 dark:text-green-300">
+                  Bạn có muốn bắt đầu một phiên Pomodoro ngay bây giờ?
+                </p>
+                <button
+                  onClick={handleStartFocusSession}
+                  className="mt-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm font-medium"
+                >
+                  Bắt đầu phiên tập trung
+                </button>
+              </div>
+            </div>
+          </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>

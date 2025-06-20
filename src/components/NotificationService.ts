@@ -3,136 +3,9 @@
 import useNotificationStore from '../stores/notificationStore';
 import { Notification } from '../types/notification';
 
-export interface Notification {
-  id: string;
-  type: 'overdue' | 'upcoming' | 'ot' | 'system' | 'achievement' | 'pomodoroComplete' | 'breakComplete' | 'taskDeadline' | 'projectDeadline' | 'workloadWarning';
-  title: string;
-  message: string;
-  timestamp: Date;
-  read: boolean;
-  priority: 'high' | 'medium' | 'low' | 'critical';
-  relatedId?: string;
-  relatedType?: 'task' | 'project';
-  actionRequired?: boolean;
-}
-
 // Add a new notification
-export const addNotification = (notification: Notification): void => {
-  // Load existing notifications
-  const savedNotifications = localStorage.getItem('notifications');
-  let notifications: Notification[] = [];
-  
-  if (savedNotifications) {
-    notifications = JSON.parse(savedNotifications).map((n: any) => ({
-      ...n,
-      timestamp: new Date(n.timestamp)
-    }));
-  }
-  
-  // Check if notification with this ID already exists
-  const existingIndex = notifications.findIndex(n => n.id === notification.id);
-  
-  if (existingIndex >= 0) {
-    // Update existing notification
-    notifications[existingIndex] = {
-      ...notification,
-      timestamp: new Date() // Update timestamp
-    };
-  } else {
-    // Add new notification
-    notifications.unshift(notification);
-  }
-  
-  // Save to localStorage
-  localStorage.setItem('notifications', JSON.stringify(notifications));
-  
-  // Dispatch event for real-time updates
-  window.dispatchEvent(new CustomEvent('new-notification', {
-    detail: { notification }
-  }));
-  
-  // Send to main process for OS notification if needed
-  const notificationConfig = localStorage.getItem('notificationConfig');
-  if (notificationConfig) {
-    const config = JSON.parse(notificationConfig);
-    if (config.osNotifications && (notification.priority === 'high' || notification.priority === 'critical')) {
-      window.ipc?.send('show-notification', notification);
-    }
-  } else {
-    // Default to showing OS notifications for high priority
-    if (notification.priority === 'high' || notification.priority === 'critical') {
-      window.ipc?.send('show-notification', notification);
-    }
-  }
-};
-
-// Mark a notification as read
-export const markNotificationAsRead = (id: string): void => {
-  const savedNotifications = localStorage.getItem('notifications');
-  if (!savedNotifications) return;
-  
-  const notifications = JSON.parse(savedNotifications);
-  const updatedNotifications = notifications.map((n: Notification) => 
-    n.id === id ? { ...n, read: true } : n
-  );
-  
-  localStorage.setItem('notifications', JSON.stringify(updatedNotifications));
-  
-  // Dispatch event for real-time updates
-  window.dispatchEvent(new CustomEvent('notification-updated'));
-};
-
-// Mark all notifications as read
-export const markAllNotificationsAsRead = (): void => {
-  const savedNotifications = localStorage.getItem('notifications');
-  if (!savedNotifications) return;
-  
-  const notifications = JSON.parse(savedNotifications);
-  const updatedNotifications = notifications.map((n: Notification) => ({ ...n, read: true }));
-  
-  localStorage.setItem('notifications', JSON.stringify(updatedNotifications));
-  
-  // Dispatch event for real-time updates
-  window.dispatchEvent(new CustomEvent('notification-updated'));
-};
-
-// Delete a notification
-export const deleteNotification = (id: string): void => {
-  const savedNotifications = localStorage.getItem('notifications');
-  if (!savedNotifications) return;
-  
-  const notifications = JSON.parse(savedNotifications);
-  const updatedNotifications = notifications.filter((n: Notification) => n.id !== id);
-  
-  localStorage.setItem('notifications', JSON.stringify(updatedNotifications));
-  
-  // Dispatch event for real-time updates
-  window.dispatchEvent(new CustomEvent('notification-updated'));
-};
-
-// Clear all notifications
-export const clearAllNotifications = (): void => {
-  localStorage.setItem('notifications', JSON.stringify([]));
-  
-  // Dispatch event for real-time updates
-  window.dispatchEvent(new CustomEvent('notification-updated'));
-};
-
-// Get all notifications
-export const getAllNotifications = (): Notification[] => {
-  const savedNotifications = localStorage.getItem('notifications');
-  if (!savedNotifications) return [];
-  
-  return JSON.parse(savedNotifications).map((n: any) => ({
-    ...n,
-    timestamp: new Date(n.timestamp)
-  }));
-};
-
-// Get unread count
-export const getUnreadCount = (): number => {
-  const notifications = getAllNotifications();
-  return notifications.filter(n => !n.read).length;
+export const addNotification = (notification: Omit<Notification, 'id' | 'timestamp' | 'read'>): void => {
+  useNotificationStore.getState().addNotification(notification);
 };
 
 // Create a task overdue notification
@@ -250,6 +123,21 @@ export const createAchievementNotification = (
     title: `Thành tựu mới: ${achievementTitle}`,
     message: achievementDescription,
     priority: 'medium'
+  };
+
+  useNotificationStore.getState().addNotification(notification);
+};
+
+// Create an inactivity warning notification
+export const createInactivityNotification = (
+  inactiveMinutes: number
+): void => {
+  const notification: Omit<Notification, 'id' | 'timestamp' | 'read'> = {
+    type: 'inactivityWarning',
+    title: 'Cảnh báo không hoạt động',
+    message: `Bạn đã không thực hiện phiên Pomodoro nào trong ${inactiveMinutes} phút. Hãy bắt đầu một phiên tập trung để duy trì năng suất!`,
+    priority: 'medium',
+    actionRequired: true
   };
 
   useNotificationStore.getState().addNotification(notification);

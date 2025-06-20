@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Task, updateTask, deleteTask, getSessions, Session, getProjects, Project } from '../services/api';
+import { Task, updateTask, deleteTask, getSessions, Session, getProjects, Project, getConfig, Config } from '../services/api';
 import { 
   AiOutlineClose, 
   AiOutlineEdit, 
@@ -12,10 +12,12 @@ import {
   AiOutlineCheckCircle,
   AiOutlineFlag,
   AiOutlineSave,
-  AiOutlineHistory
+  AiOutlineHistory,
+  AiOutlineWarning
 } from 'react-icons/ai';
-import { FiPlay, FiClock, FiTrendingUp } from 'react-icons/fi';
+import { FiPlay, FiClock, FiTrendingUp, FiAlertTriangle } from 'react-icons/fi';
 import TipTapEditor from './TipTapEditor';
+import OvertimeWarningModal from './OvertimeWarningModal';
 
 interface TaskDetailModalProps {
   task: Task;
@@ -40,6 +42,9 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const [projects, setProjects] = useState<Project[]>([]);
   const [newTag, setNewTag] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [config, setConfig] = useState<Config | null>(null);
+  const [showOvertimeWarning, setShowOvertimeWarning] = useState(false);
+  const [acknowledgedOT, setAcknowledgedOT] = useState(false);
 
   useEffect(() => {
     if (isOpen && task) {
@@ -53,17 +58,42 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
         status: task.status || 'todo'
       });
       fetchRelatedData();
+      
+      // Check if task is overdue
+      if (task.deadline) {
+        const deadline = new Date(task.deadline);
+        const now = new Date();
+        if (deadline < now && task.status !== 'done') {
+          // Check if we've already acknowledged this task's OT
+          const savedAcknowledged = localStorage.getItem('acknowledgedTaskOT');
+          if (savedAcknowledged) {
+            const acknowledged = JSON.parse(savedAcknowledged);
+            setAcknowledgedOT(acknowledged[task._id] || false);
+          }
+          
+          // If not acknowledged, show warning after a short delay
+          if (!acknowledgedOT) {
+            const timer = setTimeout(() => {
+              setShowOvertimeWarning(true);
+            }, 1000);
+            
+            return () => clearTimeout(timer);
+          }
+        }
+      }
     }
-  }, [isOpen, task]);
+  }, [isOpen, task, acknowledgedOT]);
 
   const fetchRelatedData = async () => {
     try {
-      const [sessionsData, projectsData] = await Promise.all([
+      const [sessionsData, projectsData, configData] = await Promise.all([
         getSessions(),
-        getProjects()
+        getProjects(),
+        getConfig()
       ]);
       setSessions(sessionsData.filter(s => s.taskId === task._id));
       setProjects(projectsData);
+      setConfig(configData);
     } catch (error) {
       console.error('Failed to fetch related data:', error);
     }
@@ -140,11 +170,66 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     }
   };
 
+  const isTaskOverdue = () => {
+    if (!task.deadline || task.status === 'done') return false;
+    const deadline = new Date(task.deadline);
+    const now = new Date();
+    return deadline < now;
+  };
+
+  const getDaysOverdue = () => {
+    if (!task.deadline) return 0;
+    const deadline = new Date(task.deadline);
+    const now = new Date();
+    if (deadline > now) return 0;
+    return Math.floor((now.getTime() - deadline.getTime()) / (1000 * 60 * 60 * 24));
+  };
+
+  const calculateOvertimeHours = () => {
+    if (!task.estimatedPomodoros || !config) return 0;
+    
+    // Convert pomodoros to hours
+    const estimatedHours = (task.estimatedPomodoros * 25) / 60;
+    
+    // Get completed hours
+    const completedHours = sessions
+      .filter(s => s.type === 'focus')
+      .reduce((total, s) => total + ((s.duration || 0) / 3600), 0);
+    
+    // Calculate remaining hours
+    const remainingHours = Math.max(0, estimatedHours - completedHours);
+    
+    // If task is not overdue, no overtime needed
+    if (!isTaskOverdue()) return 0;
+    
+    // Calculate available working hours
+    const workingHoursPerDay = config.workSchedule.hoursPerDay;
+    
+    // If remaining hours > available hours for today, we need overtime
+    if (remainingHours > workingHoursPerDay) {
+      return remainingHours - workingHoursPerDay;
+    }
+    
+    return 0;
+  };
+
+  const handleOvertimeWarningClose = () => {
+    setShowOvertimeWarning(false);
+    setAcknowledgedOT(true);
+    
+    // Save acknowledgment to localStorage
+    const savedAcknowledged = localStorage.getItem('acknowledgedTaskOT');
+    const acknowledged = savedAcknowledged ? JSON.parse(savedAcknowledged) : {};
+    acknowledged[task._id] = true;
+    localStorage.setItem('acknowledgedTaskOT', JSON.stringify(acknowledged));
+  };
+
   const focusSessions = sessions.filter(s => s.type === 'focus');
   const totalFocusTime = focusSessions.reduce((total, s) => total + (s.duration || 0), 0);
   const completedPomodoros = focusSessions.length;
   const progress = task.estimatedPomodoros ? (completedPomodoros / task.estimatedPomodoros) * 100 : 0;
   const project = projects.find(p => p._id === task.projectId);
+  const overtimeHours = calculateOvertimeHours();
 
   if (!isOpen) return null;
 
@@ -196,6 +281,29 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
         </div>
 
         <div className="p-6 space-y-6">
+          {/* Overdue Warning */}
+          {isTaskOverdue() && !isEditing && (
+            <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-xl border border-red-200 dark:border-red-800">
+              <div className="flex items-start space-x-3">
+                <FiAlertTriangle className="w-5 h-5 text-red-500 mt-1 flex-shrink-0" />
+                <div>
+                  <h4 className="font-medium text-red-800 dark:text-red-300">Task đã quá hạn!</h4>
+                  <p className="text-sm text-red-600 dark:text-red-400 mt-1">
+                    Task này đã quá hạn <strong>{getDaysOverdue()} ngày</strong>. 
+                    {overtimeHours > 0 && (
+                      <span> Cần <strong>{overtimeHours.toFixed(1)} giờ OT</strong> để hoàn thành.</span>
+                    )}
+                  </p>
+                  {acknowledgedOT && (
+                    <p className="text-xs text-red-500 dark:text-red-400 mt-1 italic">
+                      Đã xác nhận cần OT
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Main Content Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Left Column - Task Details */}
@@ -423,11 +531,17 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 ) : (
-                  <div className="text-gray-700 dark:text-gray-300">
+                  <div className={`text-gray-700 dark:text-gray-300 ${isTaskOverdue() ? 'text-red-600 dark:text-red-400 font-medium' : ''}`}>
                     {task.deadline 
                       ? new Date(task.deadline).toLocaleString('vi-VN')
                       : 'Không có thời hạn'
                     }
+                    {isTaskOverdue() && (
+                      <div className="mt-1 flex items-center text-red-600 dark:text-red-400">
+                        <AiOutlineWarning className="mr-1" />
+                        <span>Quá hạn {getDaysOverdue()} ngày</span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -519,6 +633,19 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
             </div>
           </div>
         </div>
+
+        {/* Overtime Warning Modal */}
+        {showOvertimeWarning && overtimeHours > 0 && (
+          <OvertimeWarningModal
+            isOpen={showOvertimeWarning}
+            onClose={handleOvertimeWarningClose}
+            overtimeHours={overtimeHours}
+            taskTitle={task.title}
+            projectName={project?.name}
+            daysOverdue={getDaysOverdue()}
+            deadlineDate={task.deadline}
+          />
+        )}
       </div>
     </div>
   );

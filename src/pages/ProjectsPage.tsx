@@ -1,9 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { getProjects, createProject, updateProject, deleteProject, getTasks, Project } from '../services/api';
-import { FiTrash2, FiEdit, FiArrowLeft, FiPlusCircle, FiCheckCircle } from 'react-icons/fi';
+import { getProjects, createProject, updateProject, deleteProject, getTasks, Project, getProjectProgress, ProjectProgressAnalysis } from '../services/api';
+import { FiTrash2, FiEdit, FiArrowLeft, FiPlusCircle, FiCheckCircle, FiClock, FiCalendar, FiTrendingUp } from 'react-icons/fi';
+import { AiOutlineCalendar, AiOutlineClockCircle, AiOutlineWarning, AiOutlineEdit } from 'react-icons/ai';
 import KanbanBoard from '../components/kanban/KanbanBoard';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import useLanguage from '../hooks/useLanguage';
+import ProjectProgressCard from '../components/ProjectProgressCard';
+import ProjectDeadlineForm from '../components/ProjectDeadlineForm';
 
 const ProjectsPage: React.FC = () => {
   const { t } = useLanguage();
@@ -13,6 +16,11 @@ const ProjectsPage: React.FC = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
   const [canComplete, setCanComplete] = useState<Record<string, boolean>>({});
+  const [showProgressCard, setShowProgressCard] = useState(false);
+  const [showDeadlineForm, setShowDeadlineForm] = useState(false);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [projectProgress, setProjectProgress] = useState<ProjectProgressAnalysis | null>(null);
+  const [isLoadingProgress, setIsLoadingProgress] = useState(false);
 
   useEffect(() => {
     if (selectedProjectId) {
@@ -56,7 +64,7 @@ const ProjectsPage: React.FC = () => {
   const handleCreate = async () => {
     if (!newName.trim()) return;
     try {
-      const project = await createProject(newName.trim());
+      const project = await createProject({ name: newName.trim() });
       setProjects(prev => [project, ...prev]);
       setNewName('');
     } catch (err) {
@@ -98,6 +106,32 @@ const ProjectsPage: React.FC = () => {
     }
   };
 
+  const handleViewProgress = async (project: Project) => {
+    setSelectedProject(project);
+    setShowProgressCard(true);
+    setIsLoadingProgress(true);
+    
+    try {
+      const progress = await getProjectProgress(project._id);
+      setProjectProgress(progress);
+    } catch (error) {
+      console.error('Failed to fetch project progress:', error);
+    } finally {
+      setIsLoadingProgress(false);
+    }
+  };
+
+  const handleEditDeadline = (project: Project) => {
+    setSelectedProject(project);
+    setShowDeadlineForm(true);
+  };
+
+  const handleUpdateProject = (updatedProject: Project) => {
+    setProjects(prev => prev.map(p => p._id === updatedProject._id ? updatedProject : p));
+    setShowDeadlineForm(false);
+    setSelectedProject(null);
+  };
+
   if (selectedProjectId) {
     const project = projects.find(p => p._id === selectedProjectId);
     return (
@@ -110,7 +144,29 @@ const ProjectsPage: React.FC = () => {
             <FiArrowLeft className="w-4 h-4 group-hover:transform group-hover:-translate-x-1 transition-transform duration-300" />
             <span>{t('projects.backToProjects')}</span>
           </button>
-          <div className="text-sm text-gray-500 dark:text-gray-400">
+          <div className="flex items-center space-x-3">
+            {project?.deadline && (
+              <div className="flex items-center space-x-1 text-sm">
+                <AiOutlineCalendar className="text-blue-500" />
+                <span>
+                  Deadline: {new Date(project.deadline).toLocaleDateString('vi-VN')}
+                </span>
+              </div>
+            )}
+            <button
+              onClick={() => handleEditDeadline(project!)}
+              className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+              title="Cập nhật deadline"
+            >
+              <AiOutlineEdit className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => handleViewProgress(project!)}
+              className="p-2 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
+              title="Xem tiến độ"
+            >
+              <FiTrendingUp className="w-4 h-4" />
+            </button>
             {project?.completed ? (
               <span className="flex items-center text-green-600 dark:text-green-400">
                 <FiCheckCircle className="w-4 h-4 mr-1" />
@@ -136,6 +192,38 @@ const ProjectsPage: React.FC = () => {
             onStartTask={(taskId) => window.dispatchEvent(new CustomEvent('start-task', { detail: { taskId, projectId: selectedProjectId } }))}
           />
         </div>
+
+        {/* Project Progress Card */}
+        {showProgressCard && selectedProject && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="max-w-2xl w-full">
+              <ProjectProgressCard 
+                projectId={selectedProject._id} 
+                onClose={() => {
+                  setShowProgressCard(false);
+                  setSelectedProject(null);
+                  setProjectProgress(null);
+                }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Project Deadline Form */}
+        {showDeadlineForm && selectedProject && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="max-w-md w-full">
+              <ProjectDeadlineForm 
+                project={selectedProject}
+                onUpdate={handleUpdateProject}
+                onCancel={() => {
+                  setShowDeadlineForm(false);
+                  setSelectedProject(null);
+                }}
+              />
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -284,51 +372,98 @@ const ProjectsPage: React.FC = () => {
                                         </button>
                                       </div>
                                     ) : (
-                                      <div className="flex-1 flex items-center justify-between" onClick={() => setSelectedProjectId(project._id)}>
-                                        <div className="flex-1">
-                                          <div className="flex items-center">
-                                            <span className="text-gray-900 dark:text-gray-100 font-medium">{project.name}</span>
-                                            {project.completed && (
-                                              <span className="ml-2 px-2 py-0.5 bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 text-xs rounded-full border border-green-200 dark:border-green-800/50">
-                                                Hoàn thành
-                                              </span>
+                                      <div className="flex-1" onClick={() => setSelectedProjectId(project._id)}>
+                                        <div className="flex items-center justify-between">
+                                          <div className="flex-1">
+                                            <div className="flex items-center space-x-2">
+                                              <span className="text-gray-900 dark:text-gray-100 font-medium">{project.name}</span>
+                                              {project.completed && (
+                                                <span className="px-2 py-0.5 bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 text-xs rounded-full border border-green-200 dark:border-green-800/50">
+                                                  Hoàn thành
+                                                </span>
+                                              )}
+                                              {project.priority === 3 && (
+                                                <span className="px-2 py-0.5 bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 text-xs rounded-full border border-red-200 dark:border-red-800/50">
+                                                  Ưu tiên cao
+                                                </span>
+                                              )}
+                                            </div>
+                                            
+                                            {project.deadline && (
+                                              <div className="flex items-center mt-1 text-xs text-gray-600 dark:text-gray-400">
+                                                <AiOutlineCalendar className="mr-1" />
+                                                <span>
+                                                  {new Date(project.deadline).toLocaleDateString('vi-VN')}
+                                                </span>
+                                              </div>
+                                            )}
+                                            
+                                            {project.estimatedHours > 0 && (
+                                              <div className="flex items-center mt-1 text-xs text-gray-600 dark:text-gray-400">
+                                                <AiOutlineClockCircle className="mr-1" />
+                                                <span>
+                                                  {project.estimatedHours} giờ ước tính
+                                                </span>
+                                              </div>
                                             )}
                                           </div>
-                                        </div>
-                                        
-                                        <div className="flex items-center space-x-2">
-                                          {!project.completed && canComplete[project._id] && (
+                                          
+                                          <div className="flex items-center space-x-2">
                                             <button
                                               onClick={(e) => {
                                                 e.stopPropagation();
-                                                handleComplete(project._id);
+                                                handleViewProgress(project);
                                               }}
-                                              className="px-3 py-1 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-lg hover:from-indigo-600 hover:to-purple-600 transition-all duration-300 text-sm shadow-sm hover:shadow-md transform hover:translate-y-[-1px] opacity-0 group-hover:opacity-100"
+                                              className="p-1.5 text-green-500 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-full transition-all duration-300 opacity-0 group-hover:opacity-100"
+                                              title="Xem tiến độ"
                                             >
-                                              Hoàn thành
+                                              <FiTrendingUp className="w-4 h-4" />
                                             </button>
-                                          )}
-                                          <button
-                                            onClick={(e) => { 
-                                              e.stopPropagation();
-                                              setEditingId(project._id); 
-                                              setEditingName(project.name); 
-                                            }}
-                                            className="p-1.5 text-blue-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-full transition-all duration-300 opacity-0 group-hover:opacity-100"
-                                            title="Chỉnh sửa dự án"
-                                          >
-                                            <FiEdit className="w-4 h-4" />
-                                          </button>
-                                          <button
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              handleDelete(project._id);
-                                            }}
-                                            className="p-1.5 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-all duration-300 opacity-0 group-hover:opacity-100"
-                                            title="Xóa dự án"
-                                          >
-                                            <FiTrash2 className="w-4 h-4" />
-                                          </button>
+                                            
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleEditDeadline(project);
+                                              }}
+                                              className="p-1.5 text-blue-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-full transition-all duration-300 opacity-0 group-hover:opacity-100"
+                                              title="Cập nhật deadline"
+                                            >
+                                              <FiCalendar className="w-4 h-4" />
+                                            </button>
+                                            
+                                            {!project.completed && canComplete[project._id] && (
+                                              <button
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  handleComplete(project._id);
+                                                }}
+                                                className="px-3 py-1 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-lg hover:from-indigo-600 hover:to-purple-600 transition-all duration-300 text-sm shadow-sm hover:shadow-md transform hover:translate-y-[-1px] opacity-0 group-hover:opacity-100"
+                                              >
+                                                Hoàn thành
+                                              </button>
+                                            )}
+                                            <button
+                                              onClick={(e) => { 
+                                                e.stopPropagation();
+                                                setEditingId(project._id); 
+                                                setEditingName(project.name); 
+                                              }}
+                                              className="p-1.5 text-blue-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-full transition-all duration-300 opacity-0 group-hover:opacity-100"
+                                              title="Chỉnh sửa dự án"
+                                            >
+                                              <FiEdit className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleDelete(project._id);
+                                              }}
+                                              className="p-1.5 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-all duration-300 opacity-0 group-hover:opacity-100"
+                                              title="Xóa dự án"
+                                            >
+                                              <FiTrash2 className="w-4 h-4" />
+                                            </button>
+                                          </div>
                                         </div>
                                       </div>
                                     )}
@@ -365,8 +500,40 @@ const ProjectsPage: React.FC = () => {
           </DragDropContext>
         )}
       </div>
+
+      {/* Project Progress Modal */}
+      {showProgressCard && selectedProject && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="max-w-2xl w-full">
+            <ProjectProgressCard 
+              projectId={selectedProject._id} 
+              onClose={() => {
+                setShowProgressCard(false);
+                setSelectedProject(null);
+                setProjectProgress(null);
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Project Deadline Form Modal */}
+      {showDeadlineForm && selectedProject && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="max-w-md w-full">
+            <ProjectDeadlineForm 
+              project={selectedProject}
+              onUpdate={handleUpdateProject}
+              onCancel={() => {
+                setShowDeadlineForm(false);
+                setSelectedProject(null);
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
-export default ProjectsPage; 
+export default ProjectsPage;

@@ -6,9 +6,10 @@ import {
   AiOutlineSave,
   AiOutlineCalendar
 } from 'react-icons/ai';
-import { FiShield, FiRefreshCw, FiGlobe, FiClock } from 'react-icons/fi';
+import { FiShield, FiRefreshCw, FiGlobe, FiClock, FiSettings } from 'react-icons/fi';
 import { getConfig as apiGetConfig, saveConfig as apiSaveConfig } from '../services/api';
 import useLanguage from '../hooks/useLanguage';
+import NotificationSettings from './NotificationSettings';
 
 interface Config {
   pomodoro: {
@@ -53,6 +54,7 @@ const SettingsPage: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
   const [effectiveWorkHours, setEffectiveWorkHours] = useState(0);
+  const [showNotificationSettings, setShowNotificationSettings] = useState(false);
 
   useEffect(() => {
     fetchConfig();
@@ -414,16 +416,16 @@ const SettingsPage: React.FC = () => {
               <AiOutlineBell className="text-lg sm:text-xl text-yellow-600 dark:text-yellow-400" />
             </div>
             <div className="min-w-0">
-              <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100">Notifications</h2>
-              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Manage notification preferences</p>
+              <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100">Thông báo</h2>
+              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Quản lý thông báo và cảnh báo</p>
             </div>
           </div>
 
           <div className="space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
               <div className="min-w-0">
-                <h3 className="font-medium text-gray-900 dark:text-gray-100 text-sm sm:text-base">Desktop Notifications</h3>
-                <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Show notifications when sessions end</p>
+                <h3 className="font-medium text-gray-900 dark:text-gray-100 text-sm sm:text-base">Thông báo ứng dụng</h3>
+                <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Hiển thị thông báo trong ứng dụng</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
                 <input
@@ -441,8 +443,8 @@ const SettingsPage: React.FC = () => {
 
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
               <div className="min-w-0">
-                <h3 className="font-medium text-gray-900 dark:text-gray-100 text-sm sm:text-base">Sound Notifications</h3>
-                <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Play sound when sessions end</p>
+                <h3 className="font-medium text-gray-900 dark:text-gray-100 text-sm sm:text-base">Âm thanh thông báo</h3>
+                <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Phát âm thanh khi có thông báo</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
                 <input
@@ -457,6 +459,14 @@ const SettingsPage: React.FC = () => {
                 <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
               </label>
             </div>
+
+            <button
+              onClick={() => setShowNotificationSettings(true)}
+              className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors"
+            >
+              <FiSettings className="w-4 h-4" />
+              <span>Cài đặt thông báo nâng cao</span>
+            </button>
           </div>
         </div>
       </div>
@@ -517,6 +527,14 @@ const SettingsPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Notification Settings Modal */}
+      {showNotificationSettings && (
+        <NotificationSettings
+          isOpen={showNotificationSettings}
+          onClose={() => setShowNotificationSettings(false)}
+        />
+      )}
     </div>
   );
 };

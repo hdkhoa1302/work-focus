@@ -23,7 +23,8 @@ import {
   AiOutlineCalendar,
   AiOutlineFlag,
   AiOutlineCopy,
-  AiOutlineCheck
+  AiOutlineCheck,
+  AiOutlineArrowDown
 } from 'react-icons/ai';
 import { FiMessageSquare, FiClipboard, FiTarget, FiTrendingUp, FiSave, FiX } from 'react-icons/fi';
 import MarkdownRenderer from '../components/MarkdownRenderer';
@@ -41,6 +42,9 @@ const ChatPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingConversation, setIsLoadingConversation] = useState(false);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [lastReadMessageIndex, setLastReadMessageIndex] = useState(-1);
   
   // Whiteboard management states
   const [searchTerm, setSearchTerm] = useState('');
@@ -51,15 +55,79 @@ const ChatPage: React.FC = () => {
   const [editForm, setEditForm] = useState<Partial<WhiteboardItem>>({});
   
   const endRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     loadConversations();
     loadData();
   }, []);
 
+  // Enhanced scroll management
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const scrollToBottom = (smooth = true) => {
+      if (endRef.current) {
+        endRef.current.scrollIntoView({ 
+          behavior: smooth ? 'smooth' : 'auto',
+          block: 'end'
+        });
+      }
+    };
+
+    // Auto scroll to bottom when new messages arrive
+    if (messages.length > 0) {
+      const timer = setTimeout(() => {
+        scrollToBottom();
+        setLastReadMessageIndex(messages.length - 1);
+        setUnreadCount(0);
+      }, 100);
+      return () => clearTimeout(timer);
+    }
   }, [messages]);
+
+  // Enhanced tab switching with focus management
+  useEffect(() => {
+    if (activeTab === 'chat') {
+      // Focus to last message when switching to chat
+      const timer = setTimeout(() => {
+        if (endRef.current) {
+          endRef.current.scrollIntoView({ 
+            behavior: 'smooth',
+            block: 'end'
+          });
+        }
+        // Focus input field
+        const inputElement = document.querySelector('textarea[placeholder*="Mô tả công việc"]') as HTMLTextAreaElement;
+        if (inputElement) {
+          inputElement.focus();
+        }
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+  }, [activeTab]);
+
+  // Scroll detection for showing scroll-to-bottom button
+  useEffect(() => {
+    const handleScroll = () => {
+      if (messagesContainerRef.current) {
+        const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+        const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+        setShowScrollToBottom(!isNearBottom && messages.length > 5);
+        
+        // Update unread count
+        if (isNearBottom) {
+          setUnreadCount(0);
+          setLastReadMessageIndex(messages.length - 1);
+        }
+      }
+    };
+
+    const container = messagesContainerRef.current;
+    if (container) {
+      container.addEventListener('scroll', handleScroll);
+      return () => container.removeEventListener('scroll', handleScroll);
+    }
+  }, [messages.length]);
 
   const loadConversations = async () => {
     try {
@@ -71,12 +139,14 @@ const ChatPage: React.FC = () => {
       if (activeConv) {
         setActiveConversationId(activeConv._id);
         setMessages(activeConv.messages);
+        setLastReadMessageIndex(activeConv.messages.length - 1);
       } else if (convs.length === 0) {
         // Create first conversation
         const newConv = await createConversation();
         setConversations([newConv]);
         setActiveConversationId(newConv._id);
         setMessages(newConv.messages);
+        setLastReadMessageIndex(newConv.messages.length - 1);
       }
     } catch (error) {
       console.error('Failed to load conversations:', error);
@@ -110,6 +180,8 @@ const ChatPage: React.FC = () => {
       const conv = await activateConversation(conversationId);
       setActiveConversationId(conversationId);
       setMessages(conv.messages);
+      setLastReadMessageIndex(conv.messages.length - 1);
+      setUnreadCount(0);
       
       // Update conversations list
       setConversations(prev => prev.map(c => ({
@@ -129,6 +201,8 @@ const ChatPage: React.FC = () => {
       setConversations(prev => [newConv, ...prev.map(c => ({ ...c, isActive: false }))]);
       setActiveConversationId(newConv._id);
       setMessages(newConv.messages);
+      setLastReadMessageIndex(newConv.messages.length - 1);
+      setUnreadCount(0);
     } catch (error) {
       console.error('Failed to create conversation:', error);
     }
@@ -216,6 +290,15 @@ const ChatPage: React.FC = () => {
     }
   };
 
+  const scrollToBottom = () => {
+    if (endRef.current) {
+      endRef.current.scrollIntoView({ 
+        behavior: 'smooth',
+        block: 'end'
+      });
+    }
+  };
+
   const sendMessage = async (messageText?: string) => {
     const text = messageText || input.trim();
     if (!text || isLoading) return;
@@ -224,6 +307,15 @@ const ChatPage: React.FC = () => {
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setIsLoading(true);
+
+    // Update unread count if user is not at bottom
+    if (messagesContainerRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+      const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+      if (!isNearBottom) {
+        setUnreadCount(prev => prev + 1);
+      }
+    }
 
     try {
       const response: AIChatResponse = await postAIChat({ 
@@ -262,9 +354,26 @@ const ChatPage: React.FC = () => {
         });
       }
 
+      // Handle whiteboard updates
+      if (response.type === 'apply_whiteboard_update' && response.data) {
+        const targetItem = whiteboardItems.find(item => item.title === response.data.itemTitle);
+        if (targetItem) {
+          updateWhiteboardItem(targetItem.id, response.data.updates);
+        }
+      }
+
       // Refresh data if project/task was created
       if (response.type === 'task') {
         loadData();
+      }
+
+      // Update unread count for bot response
+      if (messagesContainerRef.current) {
+        const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+        const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+        if (!isNearBottom) {
+          setUnreadCount(prev => prev + 1);
+        }
       }
     } catch (error) {
       const errMsg: Message = { 
@@ -343,7 +452,7 @@ const ChatPage: React.FC = () => {
           {conversations.map((conv) => (
             <div
               key={conv._id}
-              className={`group flex items-center justify-between p-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 ${
+              className={`group flex items-center justify-between p-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
                 conv._id === activeConversationId ? 'bg-blue-50 dark:bg-blue-900/20 border-r-2 border-blue-500' : ''
               }`}
               onClick={() => switchConversation(conv._id)}
@@ -355,6 +464,11 @@ const ChatPage: React.FC = () => {
                 <p className="text-xs text-gray-500 dark:text-gray-400">
                   {new Date(conv.updatedAt).toLocaleDateString()} - {new Date(conv.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </p>
+                {conv.messages.length > 0 && (
+                  <p className="text-xs text-gray-400 dark:text-gray-500 truncate mt-1">
+                    {conv.messages[conv.messages.length - 1].text.substring(0, 50)}...
+                  </p>
+                )}
               </div>
               <button
                 onClick={(e) => {
@@ -371,7 +485,7 @@ const ChatPage: React.FC = () => {
       </div>
 
       {/* Chat Area */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col relative">
         {isLoadingConversation && (
           <div className="bg-blue-50 dark:bg-blue-900/20 border-b border-blue-200 dark:border-blue-800 px-4 py-2">
             <div className="flex items-center space-x-2 text-blue-600 dark:text-blue-400">
@@ -381,7 +495,11 @@ const ChatPage: React.FC = () => {
           </div>
         )}
         
-        <div className="flex-1 overflow-y-auto p-4 space-y-6">
+        {/* Messages Container */}
+        <div 
+          ref={messagesContainerRef}
+          className="flex-1 overflow-y-auto p-4 space-y-6 scroll-smooth"
+        >
           {isLoadingConversation ? (
             <div className="flex items-center justify-center h-full">
               <div className="text-center">
@@ -391,64 +509,100 @@ const ChatPage: React.FC = () => {
             </div>
           ) : (
             <>
-              {messages.map((message, index) => (
-                <div key={index} className={`flex ${message.from === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[85%] ${
-                    message.from === 'user' 
-                      ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-2xl rounded-br-md' 
-                      : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-2xl rounded-bl-md shadow-md border border-gray-200 dark:border-gray-700'
-                  } p-4 relative group`}>
-                    
-                    {/* Copy button */}
-                    <button
-                      onClick={() => copyToClipboard(message.text, `${index}`)}
-                      className={`absolute top-2 right-2 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-200 ${
-                        message.from === 'user' 
-                          ? 'bg-white/20 hover:bg-white/30 text-white' 
-                          : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-400'
-                      }`}
-                      title="Copy message"
-                    >
-                      {copiedMessageId === `${index}` ? (
-                        <AiOutlineCheck className="w-3 h-3" />
-                      ) : (
-                        <AiOutlineCopy className="w-3 h-3" />
+              {messages.map((message, index) => {
+                const isUnread = index > lastReadMessageIndex;
+                return (
+                  <div key={index} className={`flex ${message.from === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[85%] relative ${
+                      message.from === 'user' 
+                        ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-2xl rounded-br-md' 
+                        : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-2xl rounded-bl-md shadow-md border border-gray-200 dark:border-gray-700'
+                    } p-4 group ${isUnread ? 'ring-2 ring-blue-400 ring-opacity-50' : ''}`}>
+                      
+                      {/* Unread indicator */}
+                      {isUnread && (
+                        <div className="absolute -top-2 -right-2 w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
                       )}
-                    </button>
 
-                    {message.from === 'bot' ? (
+                      {/* Copy button */}
+                      <button
+                        onClick={() => copyToClipboard(message.text, `${index}`)}
+                        className={`absolute top-2 right-2 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-200 z-10 ${
+                          message.from === 'user' 
+                            ? 'bg-white/20 hover:bg-white/30 text-white' 
+                            : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-400'
+                        }`}
+                        title="Copy message"
+                      >
+                        {copiedMessageId === `${index}` ? (
+                          <AiOutlineCheck className="w-3 h-3" />
+                        ) : (
+                          <AiOutlineCopy className="w-3 h-3" />
+                        )}
+                      </button>
+
+                      {/* Message content */}
                       <div className="pr-8">
-                        <MarkdownRenderer 
-                          content={message.text} 
-                          className="text-gray-800 dark:text-gray-200"
-                        />
+                        {message.from === 'bot' ? (
+                          <MarkdownRenderer 
+                            content={message.text} 
+                            className="text-gray-800 dark:text-gray-200"
+                          />
+                        ) : (
+                          <div className="whitespace-pre-wrap leading-relaxed">{message.text}</div>
+                        )}
                       </div>
-                    ) : (
-                      <div className="whitespace-pre-wrap pr-8 leading-relaxed">{message.text}</div>
-                    )}
-                    
-                    {message.type === 'project' && message.data && (
-                      <div className="mt-4 pt-4 border-t border-gray-300 dark:border-gray-600">
-                        <button
-                          onClick={() => sendMessage('ok')}
-                          className="w-full px-4 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl hover:from-green-600 hover:to-emerald-600 transition-all duration-200 font-medium shadow-lg hover:shadow-xl transform hover:scale-105"
-                        >
-                          ✅ Tạo dự án này
-                        </button>
+                      
+                      {/* Interactive buttons */}
+                      {message.type === 'project' && message.data && (
+                        <div className="mt-4 pt-4 border-t border-gray-300 dark:border-gray-600">
+                          <button
+                            onClick={() => sendMessage('Có, tạo dự án')}
+                            className="w-full px-4 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl hover:from-green-600 hover:to-emerald-600 transition-all duration-200 font-medium shadow-lg hover:shadow-xl transform hover:scale-105"
+                          >
+                            ✅ Tạo dự án này
+                          </button>
+                        </div>
+                      )}
+
+                      {message.type === 'whiteboard_update' && message.data && (
+                        <div className="mt-4 pt-4 border-t border-gray-300 dark:border-gray-600 space-y-2">
+                          <button
+                            onClick={() => sendMessage('Có, áp dụng cập nhật')}
+                            className="w-full px-4 py-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-all duration-200 font-medium shadow-lg hover:shadow-xl transform hover:scale-105"
+                          >
+                            ✅ Áp dụng cập nhật
+                          </button>
+                          <button
+                            onClick={() => sendMessage('Không, bỏ qua')}
+                            className="w-full px-4 py-3 bg-gray-500 text-white rounded-xl hover:bg-gray-600 transition-all duration-200 font-medium"
+                          >
+                            ❌ Bỏ qua
+                          </button>
+                        </div>
+                      )}
+                      
+                      {/* Message metadata */}
+                      <div className="flex items-center justify-between mt-3 pt-2 border-t border-gray-200 dark:border-gray-600 opacity-70">
+                        <span className="text-xs">
+                          {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                        <div className="flex items-center space-x-2">
+                          {message.type && message.type !== 'text' && (
+                            <span className="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 rounded-full">
+                              {message.type}
+                            </span>
+                          )}
+                          <span className="text-xs">
+                            {new Date(message.timestamp).toLocaleDateString()}
+                          </span>
+                        </div>
                       </div>
-                    )}
-                    
-                    <div className="flex items-center justify-between mt-3 pt-2 border-t border-gray-200 dark:border-gray-600 opacity-70">
-                      <span className="text-xs">
-                        {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                      <span className="text-xs">
-                        {new Date(message.timestamp).toLocaleDateString()}
-                      </span>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
+              
               {isLoading && (
                 <div className="flex justify-start">
                   <div className="bg-white dark:bg-gray-800 rounded-2xl rounded-bl-md shadow-md border border-gray-200 dark:border-gray-700 p-4">
@@ -464,7 +618,23 @@ const ChatPage: React.FC = () => {
             </>
           )}
         </div>
+
+        {/* Scroll to bottom button */}
+        {showScrollToBottom && (
+          <button
+            onClick={scrollToBottom}
+            className="absolute bottom-24 right-6 w-12 h-12 bg-blue-500 text-white rounded-full shadow-lg hover:bg-blue-600 transition-all duration-200 flex items-center justify-center z-10 hover:scale-110"
+          >
+            <AiOutlineArrowDown className="w-5 h-5" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center font-bold">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
+          </button>
+        )}
         
+        {/* Input Area */}
         <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
           <div className="flex space-x-3">
             <textarea
@@ -476,8 +646,8 @@ const ChatPage: React.FC = () => {
                   sendMessage();
                 }
               }}
-              placeholder="Mô tả công việc, ghi chú, hoặc đặt câu hỏi... (Shift+Enter để xuống dòng)"
-              className="flex-1 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none min-h-[48px] max-h-32 shadow-sm"
+              placeholder="Mô tả công việc, ghi chú, quyết định hoặc cập nhật... (Shift+Enter để xuống dòng)"
+              className="flex-1 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none min-h-[48px] max-h-32 shadow-sm transition-all duration-200 focus:shadow-md"
               disabled={isLoading || isLoadingConversation}
               rows={1}
               style={{
@@ -508,7 +678,17 @@ const ChatPage: React.FC = () => {
               <span>💡 Mô tả dự án để AI phân tích</span>
               <span>📝 Ghi chú quan trọng</span>
               <span>🤔 Quyết định cần đưa ra</span>
+              <span>🔄 Cập nhật trạng thái</span>
             </div>
+            {unreadCount > 0 && (
+              <button
+                onClick={scrollToBottom}
+                className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center space-x-1"
+              >
+                <span>{unreadCount} tin nhắn mới</span>
+                <AiOutlineArrowDown className="w-3 h-3" />
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -944,6 +1124,11 @@ const ChatPage: React.FC = () => {
           >
             <FiMessageSquare className="w-4 h-4" />
             <span>Chat</span>
+            {unreadCount > 0 && activeTab !== 'chat' && (
+              <span className="bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
           </button>
           
           <button

@@ -3,6 +3,8 @@ import { spawn } from 'child_process';
 import { TaskModel } from './models/task';
 import { SessionModel } from './models/session';
 import { ConfigModel } from './models/config';
+import { notificationManager } from './notification';
+import { updateLastActivityTime } from './inactivity';
 
 let interval: NodeJS.Timeout | null = null;
 let startTimestamp = 0;
@@ -115,6 +117,38 @@ export function setupTimer(tray: Tray) {
             duration: duration / 1000,
           });
           await checkTaskCompletion(currentTaskId);
+          
+          // Send notification based on timer type
+          if (currentType === 'focus') {
+            // Get task title if available
+            let taskTitle = undefined;
+            if (currentTaskId) {
+              const task = await TaskModel.findById(currentTaskId);
+              if (task) taskTitle = task.title;
+            }
+            
+            // Show notification
+            notificationManager.showNotification({
+              id: `pomodoro-complete-${Date.now()}`,
+              type: 'pomodoroComplete',
+              title: 'Phiên Pomodoro hoàn thành',
+              body: taskTitle 
+                ? `Bạn đã hoàn thành phiên tập trung cho task "${taskTitle}". Hãy nghỉ ngơi!`
+                : 'Bạn đã hoàn thành phiên tập trung. Hãy nghỉ ngơi!',
+              priority: 'medium',
+              timestamp: new Date()
+            });
+          } else {
+            // Break complete notification
+            notificationManager.showNotification({
+              id: `break-complete-${Date.now()}`,
+              type: 'breakComplete',
+              title: 'Hết giờ nghỉ',
+              body: 'Thời gian nghỉ đã kết thúc. Sẵn sàng cho phiên tập trung tiếp theo?',
+              priority: 'medium',
+              timestamp: new Date()
+            });
+          }
         } catch (err) {
           console.error('Failed to save session:', err);
         }
@@ -123,6 +157,9 @@ export function setupTimer(tray: Tray) {
         updateTray(updatedRemaining);
       }
     }, 1000);
+    
+    // Update activity time when starting a timer
+    updateLastActivityTime();
   });
 
   ipcMain.on('timer-pause', (event) => {
@@ -179,6 +216,38 @@ export function setupTimer(tray: Tray) {
               duration: (remainingMs / 1000),
             });
             await checkTaskCompletion(currentTaskId);
+            
+            // Send notification based on timer type
+            if (currentType === 'focus') {
+              // Get task title if available
+              let taskTitle = undefined;
+              if (currentTaskId) {
+                const task = await TaskModel.findById(currentTaskId);
+                if (task) taskTitle = task.title;
+              }
+              
+              // Show notification
+              notificationManager.showNotification({
+                id: `pomodoro-complete-${Date.now()}`,
+                type: 'pomodoroComplete',
+                title: 'Phiên Pomodoro hoàn thành',
+                body: taskTitle 
+                  ? `Bạn đã hoàn thành phiên tập trung cho task "${taskTitle}". Hãy nghỉ ngơi!`
+                  : 'Bạn đã hoàn thành phiên tập trung. Hãy nghỉ ngơi!',
+                priority: 'medium',
+                timestamp: new Date()
+              });
+            } else {
+              // Break complete notification
+              notificationManager.showNotification({
+                id: `break-complete-${Date.now()}`,
+                type: 'breakComplete',
+                title: 'Hết giờ nghỉ',
+                body: 'Thời gian nghỉ đã kết thúc. Sẵn sàng cho phiên tập trung tiếp theo?',
+                priority: 'medium',
+                timestamp: new Date()
+              });
+            }
           } catch (err) {
             console.error('Failed to save session:', err);
           }
@@ -187,6 +256,9 @@ export function setupTimer(tray: Tray) {
           updateTray(updatedRemaining);
         }
       }, 1000);
+      
+      // Update activity time when resuming a timer
+      updateLastActivityTime();
     }
   });
-} 
+}

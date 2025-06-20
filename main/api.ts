@@ -9,10 +9,11 @@ import { ConversationModel } from './models/conversation';
 import { setupAuthRoutes, authenticateToken } from './auth';
 import { ProjectModel } from './models/project';
 import { chat } from './services/geminiService';
+import { findAvailablePortWithInfo, suggestSolution } from './utils/port-checker';
 
-export function setupAPI() {
+export async function setupAPI() {
   const app = express();
-  const port = process.env.API_PORT || 3000;
+  const preferredPort = parseInt(process.env.API_PORT || '3000', 10);
 
   app.use(cors());
   app.use(bodyParser.json());
@@ -832,13 +833,227 @@ Trả lời bằng tiếng Việt, thân thiện và có cấu trúc rõ ràng.
         analysis: aiResponse.text,
         recommendations: [
           completionRate < 50 ? 'Tập trung hoàn thành các task đã tạo' : null,
-          activeProjects > 5 ? 'Giảm số dự án đang thực hiện' : null,
+          activeProjects > 5 ?  'Giảm số dự án đang thực hiện' : null,
           focusSessions.length < 10 ? 'Tăng cường sử dụng Pomodoro' : null
         ].filter(Boolean)
       });
     } catch (error) {
       console.error('Error analyzing performance:', error);
       res.status(500).json({ message: 'Failed to analyze performance' });
+    }
+  });
+
+  // Project Progress Analysis
+  app.get('/api/projects/:id/progress', authenticateToken, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const projectId = req.params.id;
+      
+      // Get project, tasks, and sessions
+      const [project, tasks, sessions, config] = await Promise.all([
+        ProjectModel.findOne({ _id: projectId, userId }),
+        TaskModel.find({ projectId, userId }),
+        SessionModel.find({ userId }),
+        ConfigModel.findOne({ userId })
+      ]);
+      
+      if (!project) {
+        return res.status(404).json({ message: 'Project not found' });
+      }
+      
+      // Default work schedule if not set
+      const workSchedule = config?.workSchedule || {
+        hoursPerDay: 8,
+        daysPerWeek: 5,
+        startTime: '09:00',
+        endTime: '17:00',
+        breakHours: 1,
+        overtimeRate: 1.5
+      };
+      
+      // Calculate project stats
+      const totalTasks = tasks.length;
+      const completedTasks = tasks.filter(t => t.status === 'done').length;
+      const completionPercentage = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
+      
+      // Calculate time stats
+      const projectSessions = sessions.filter(s => 
+        s.type === 'focus' && 
+        s.taskId &&
+        tasks.some(t => t._id.toString() === s.taskId?.toString())
+      );
+      
+      const totalActualHours = projectSessions.reduce((total, s) => total + (s.duration || 0), 0) / 3600;
+      
+      // Calculate estimated hours from tasks if project doesn't have it
+      const totalEstimatedHours = project.estimatedHours || 
+        tasks.reduce((total, t) => total + ((t.estimatedPomodoros || 1) * 25 / 60), 0);
+      
+      // Calculate remaining work
+      const remainingHours = Math.max(0, totalEstimatedHours - totalActualHours);
+      
+      // Calculate deadline info
+      let daysRemaining = 0;
+      let requiredDailyHours = 0;
+      let overtimeRequired = 0;
+      let isOnTrack = true;
+      let riskLevel = 'low';
+      
+      if (project.deadline) {
+        const now = new Date();
+        const deadline = new Date(project.deadline);
+        const diffTime = deadline.getTime() - now.getTime();
+        daysRemaining = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+        
+        // Calculate working days remaining
+        const workingDaysRemaining = Math.max(1, Math.round(daysRemaining * (workSchedule.daysPerWeek / 7)));
+        
+        // Calculate required hours per day
+        requiredDailyHours = remainingHours / workingDaysRemaining;
+        
+        // Calculate if overtime is required
+        const availableWorkingHours = workingDaysRemaining * workSchedule.hoursPerDay;
+        overtimeRequired = Math.max(0, remainingHours - availableWorkingHours);
+        
+        // Determine if project is on track
+        isOnTrack = requiredDailyHours <= workSchedule.hoursPerDay;
+        
+        // Determine risk level
+        if (daysRemaining === 0 && remainingHours > 0) {
+          riskLevel = 'critical';
+        } else if (requiredDailyHours > workSchedule.hoursPerDay * 1.5) {
+          riskLevel = 'high';
+        } else if (requiredDailyHours > workSchedule.hoursPerDay) {
+          riskLevel = 'medium';
+        } else {
+          riskLevel = 'low';
+        }
+      }
+      
+      // Generate recommendations
+      const recommendations = [];
+      
+      if (riskLevel === 'critical') {
+        recommendations.push('Cân nhắc đàm phán lại deadline hoặc giảm phạm vi dự án');
+        recommendations.push('Tập trung vào các task quan trọng nhất để đảm bảo giá trị cốt lõi');
+      }
+      
+      if (riskLevel === 'high' || riskLevel === 'medium') {
+        recommendations.push('Cần làm thêm giờ để kịp tiến độ');
+        recommendations.push('Ưu tiên các task có giá trị cao nhất trước');
+      }
+      
+      if (completionPercentage < 30 && daysRemaining < totalTasks) {
+        recommendations.push('Tốc độ hoàn thành task hiện tại quá chậm so với deadline');
+      }
+      
+      if (tasks.filter(t => t.status === 'in-progress').length > 3) {
+        recommendations.push('Đang có quá nhiều task đang thực hiện cùng lúc, nên tập trung hoàn thành từng task');
+      }
+      
+      if (recommendations.length === 0) {
+        recommendations.push('Dự án đang tiến triển tốt, tiếp tục duy trì nhịp độ hiện tại');
+      }
+      
+      res.json({
+        project,
+        tasks,
+        sessions: projectSessions,
+        analysis: {
+          totalEstimatedHours,
+          totalActualHours,
+          completionPercentage,
+          remainingHours,
+          isOnTrack,
+          daysRemaining,
+          requiredDailyHours,
+          overtimeRequired,
+          riskLevel,
+          recommendations
+        },
+        workSchedule
+      });
+    } catch (error) {
+      console.error('Error analyzing project progress:', error);
+      res.status(500).json({ message: 'Failed to analyze project progress' });
+    }
+  });
+
+  // Daily Tasks API
+  app.get('/api/daily-tasks', authenticateToken, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const dateParam = req.query.date as string;
+      const date = dateParam ? new Date(dateParam) : new Date();
+      
+      // Set to start of day
+      date.setHours(0, 0, 0, 0);
+      
+      // Get end of day
+      const endDate = new Date(date);
+      endDate.setHours(23, 59, 59, 999);
+      
+      // Get tasks with deadlines on the specified date
+      const tasksWithDeadline = await TaskModel.find({
+        userId,
+        deadline: { $gte: date, $lte: endDate },
+        status: { $ne: 'done' }
+      }).sort({ priority: -1 });
+      
+      // Get tasks in progress without deadline
+      const tasksInProgress = await TaskModel.find({
+        userId,
+        status: 'in-progress',
+        $or: [
+          { deadline: { $exists: false } },
+          { deadline: null },
+          { deadline: { $gt: endDate } }
+        ]
+      }).sort({ priority: -1 });
+      
+      // Get projects with deadlines approaching (within 3 days)
+      const threeDay = new Date(date);
+      threeDay.setDate(date.getDate() + 3);
+      
+      const projects = await ProjectModel.find({
+        userId,
+        deadline: { $gte: date, $lte: threeDay },
+        completed: false
+      }).sort({ deadline: 1 });
+      
+      // Get today's completed tasks
+      const completedToday = await TaskModel.find({
+        userId,
+        status: 'done',
+        updatedAt: { $gte: date, $lte: endDate }
+      });
+      
+      // Get today's sessions
+      const todaySessions = await SessionModel.find({
+        userId,
+        startTime: { $gte: date, $lte: endDate }
+      });
+      
+      const focusSessions = todaySessions.filter(s => s.type === 'focus');
+      const totalFocusTime = focusSessions.reduce((total, s) => total + (s.duration || 0), 0);
+      
+      res.json({
+        date: date.toISOString(),
+        tasksWithDeadline,
+        tasksInProgress,
+        projects,
+        stats: {
+          tasksWithDeadline: tasksWithDeadline.length,
+          tasksInProgress: tasksInProgress.length,
+          projectsWithDeadline: projects.length,
+          completedToday: completedToday.length,
+          focusSessions: focusSessions.length,
+          totalFocusTime: Math.round(totalFocusTime / 60) // in minutes
+        }
+      });
+    } catch (error) {
+      console.error('Error fetching daily tasks:', error);
+      res.status(500).json({ message: 'Failed to fetch daily tasks' });
     }
   });
 
@@ -1001,11 +1216,11 @@ Trả lời bằng tiếng Việt, thân thiện và có cấu trúc rõ ràng.
   app.post('/api/projects', async (req, res) => {
     try {
       const userId = (req as any).userId;
-      const { name } = req.body;
-      if (!name) {
+      const projectData = { ...req.body, userId };
+      if (!projectData.name) {
         return res.status(400).json({ message: 'Project name is required' });
       }
-      const project = new ProjectModel({ name, userId });
+      const project = new ProjectModel(projectData);
       await project.save();
       res.status(201).json(project);
     } catch (error) {
@@ -1022,6 +1237,12 @@ Trả lời bằng tiếng Việt, thân thiện và có cấu trúc rõ ràng.
       if (req.body.name !== undefined) updateData.name = req.body.name;
       if (req.body.completed !== undefined) updateData.completed = req.body.completed;
       if (req.body.status !== undefined) updateData.status = req.body.status;
+      if (req.body.deadline !== undefined) updateData.deadline = req.body.deadline;
+      if (req.body.estimatedHours !== undefined) updateData.estimatedHours = req.body.estimatedHours;
+      if (req.body.actualHours !== undefined) updateData.actualHours = req.body.actualHours;
+      if (req.body.description !== undefined) updateData.description = req.body.description;
+      if (req.body.priority !== undefined) updateData.priority = req.body.priority;
+      
       const project = await ProjectModel.findOneAndUpdate(
         { _id: req.params.id, userId },
         updateData,
@@ -1053,7 +1274,52 @@ Trả lời bằng tiếng Việt, thân thiện và có cấu trúc rõ ràng.
     }
   });
 
-  app.listen(port, () => {
+  // Tìm port khả dụng với thông tin chi tiết
+  let port: number;
+  try {
+    const result = await findAvailablePortWithInfo(preferredPort);
+    port = result.port;
+    
+    if (port !== preferredPort) {
+      console.log(`⚠️  Port ${preferredPort} đã bị sử dụng, chuyển sang port ${port}`);
+      
+      // Hiển thị thông tin chi tiết về các port bị xung đột
+      if (result.conflicts.length > 0) {
+        console.log('📋 Thông tin các port đã bị sử dụng:');
+        result.conflicts.forEach(conflict => {
+          if (conflict.processInfo) {
+            const { pid, name, cmd } = conflict.processInfo;
+            console.log(`   Port ${conflict.port}: ${name} (PID: ${pid}) - ${cmd}`);
+            
+            // Hiển thị gợi ý giải pháp
+            const suggestions = suggestSolution(conflict);
+            if (suggestions.length > 0) {
+              console.log(`   💡 Gợi ý: ${suggestions[0]}`);
+            }
+          }
+        });
+      }
+    }
+  } catch (error) {
+    console.error('❌ Lỗi khi tìm port khả dụng:', error);
+    throw error;
+  }
+
+  // Khởi động server với error handling
+  const server = app.listen(port, () => {
     console.log(`🌐 API server listening on http://localhost:${port}`);
+    console.log(`✅ Server khởi động thành công tại port ${port}`);
   });
+
+  // Xử lý lỗi server
+  server.on('error', (error: any) => {
+    if (error.code === 'EADDRINUSE') {
+      console.error(`❌ Port ${port} đã bị sử dụng. Vui lòng thử khởi động lại ứng dụng.`);
+    } else {
+      console.error('❌ Lỗi khởi động API server:', error);
+    }
+    process.exit(1);
+  });
+
+  return { server, port };
 }

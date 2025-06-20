@@ -2,6 +2,7 @@ declare global {
   interface Window {
     ipc: {
       send(channel: string, data?: any): void;
+      invoke(channel: string, ...args: any[]): Promise<any>;
       on(channel: string, listener: (event: any, data: any) => void): void;
       removeListener(channel: string, listener: (...args: any[]) => void): void;
     };

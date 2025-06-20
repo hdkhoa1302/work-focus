@@ -18,6 +18,7 @@
     "dashboard": "Dashboard",
     "tasks": "Tasks",
     "projects": "Projects",
+    "schedule": "Schedule",
     "reports": "Reports",
     "settings": "Settings"
   },
@@ -151,5 +152,136 @@
     "progress": "Progress",
     "noPerformanceData": "No task performance data available yet.",
     "completePomodorosToSeeProgress": "Complete some Pomodoro sessions to see your progress!"
+  },
+  "schedule": {
+    "title": "Schedule",
+    "subtitle": "Manage deadlines and time-based tasks",
+    "calendar": "Calendar",
+    "deadlines": "Deadlines",
+    "today": "Today",
+    "tomorrow": "Tomorrow",
+    "thisWeek": "This Week",
+    "overdue": "Overdue",
+    "noDeadline": "No Deadline",
+    "urgent": "Urgent",
+    "upcoming": "Upcoming"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "settings": {
+      "title": "Notification Settings",
+      "subtitle": "Manage notifications and alerts",
+      "generalSettings": "General Settings",
+      "enable": "Enable notifications",
+      "enableDescription": "Show all notifications",
+      "sound": "Sound",
+      "soundDescription": "Play sound when notifications arrive",
+      "osNotifications": "System notifications",
+      "osNotificationsDescription": "Show notifications on OS",
+      "checkInterval": "Check every",
+      "checkIntervalDescription": "Frequency of notification checks",
+      "quietHours": "Quiet Hours",
+      "quietHoursEnable": "Enable quiet hours",
+      "quietHoursDescription": "Disable notifications during specific time",
+      "quietHoursStart": "Start",
+      "quietHoursEnd": "End",
+      "notificationTypes": "Notification Types",
+      "test": "Test notifications",
+      "testDescription": "Send test notification to check your settings",
+      "testButton": "Test",
+      "settingsUpdated": "Settings updated successfully!",
+      "settingsError": "Error saving settings.",
+      "cancel": "Cancel"
+    },
+    "types": {
+      "taskOverdue": {
+        "title": "Overdue tasks",
+        "description": "Notify when tasks are past deadline"
+      },
+      "taskDeadline": {
+        "title": "Upcoming deadlines",
+        "description": "Notify when task deadlines are approaching"
+      },
+      "projectDeadline": {
+        "title": "Project deadlines",
+        "description": "Notify about project deadlines"
+      },
+      "workloadWarning": {
+        "title": "Workload warning",
+        "description": "Notify when workload is too high"
+      },
+      "pomodoroComplete": {
+        "title": "Pomodoro complete",
+        "description": "Notify when focus session ends"
+      },
+      "breakComplete": {
+        "title": "Break complete",
+        "description": "Notify when break session ends"
+      },
+      "achievement": {
+        "title": "Achievements",
+        "description": "Notify when new achievements are unlocked"
+      },
+      "system": {
+        "title": "System",
+        "description": "System notifications and updates"
+      }
+    },
+    "messages": {
+      "testNotification": {
+        "title": "Test Notification",
+        "message": "This is a test notification to check your settings."
+      },
+      "taskOverdue": "Task \"{{taskTitle}}\" is {{daysOverdue}} days overdue. Need {{overtimeHours}} hours OT to complete.",
+      "projectDeadline": "Project \"{{projectName}}\" is due in {{daysRemaining}} days.",
+      "workloadWarning": "You need {{requiredTime}} to complete all tasks, but only have {{availableTime}} today. Short by {{overloadedTime}}.",
+      "pomodoroComplete": "You've completed a focus session{{taskTitle}}. Time to take a break!",
+      "pomodoroCompleteNoTask": "You've completed a focus session. Time to take a break!",
+      "breakComplete": "Break time is over. Ready for the next focus session?",
+      "achievement": "{{achievementDescription}}"
+    },
+    "actions": {
+      "viewTask": "View Task",
+      "complete": "Complete",
+      "snooze": "Snooze",
+      "viewProject": "View Project",
+      "acknowledge": "Got it",
+      "viewSchedule": "View Schedule",
+      "dismiss": "Dismiss",
+      "ok": "OK",
+      "awesome": "Awesome!",
+      "close": "Close"
+    },
+    "bell": {
+      "noNotifications": "No new notifications",
+      "allCaught": "You're all caught up!",
+      "markAllRead": "Mark all as read",
+      "settings": "Settings"
+    },
+    "center": {
+      "title": "Notification Center",
+      "filters": {
+        "all": "All",
+        "unread": "Unread",
+        "high": "Important",
+        "medium": "Normal"
+      },
+      "noNotifications": "No notifications"
+    },
+    "time": {
+      "justNow": "just now",
+      "minutesAgo": "{{minutes}} minutes ago",
+      "hoursAgo": "{{hours}} hours ago",
+      "yesterday": "yesterday",
+      "daysAgo": "{{days}} days ago"
+    },
+    "intervals": {
+      "1min": "1 minute",
+      "5min": "5 minutes",
+      "10min": "10 minutes",
+      "15min": "15 minutes",
+      "30min": "30 minutes",
+      "1hour": "1 hour"
+    }
   }
 }

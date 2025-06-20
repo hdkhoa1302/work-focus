@@ -12,92 +12,38 @@ import ChatWidget from './components/ChatWidget';
 import EncouragementModal from './components/EncouragementModal';
 import OvertimeNotificationManager from './components/OvertimeNotificationManager';
 import InactivityManager from './components/InactivityManager';
-import { AiOutlineMoon, AiOutlineSun, AiOutlineUser, AiOutlineMenu, AiOutlineClose } from 'react-icons/ai';
-import { FiLogOut } from 'react-icons/fi';
-import { getTasks, Task, getEncouragement } from './services/api';
-import useTimerStore from './stores/timerStore';
 import NotificationBell from './components/NotificationBell';
-import useLanguage from '../hooks/useLanguage';
-import useNotificationStore from '../stores/notificationStore';
+import useLanguage from './hooks/useLanguage';
 import ActivityTracker from './components/ActivityTracker';
+import AppInitializer from './components/AppInitializer';
+import useStores from './hooks/useStores';
 
 function AppContent() {
   const { t } = useLanguage();
   const { user, logout, isLoading } = useAuth();
-  const [isDark, setIsDark] = useState(() => {
-    const saved = localStorage.getItem('darkMode');
-    return saved ? JSON.parse(saved) : false;
-  });
-  const [showTaskModal, setShowTaskModal] = useState(false);
-  const [showFloatingTimer, setShowFloatingTimer] = useState(false);
-  const [showMobileSidebar, setShowMobileSidebar] = useState(false);
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const { uiStore, taskStore, timerStore } = useStores();
   
-  // Encouragement modal state
+  const { 
+    isDarkMode, 
+    toggleDarkMode, 
+    isSidebarOpen, 
+    toggleSidebar, 
+    closeSidebar,
+    isFloatingTimerOpen,
+    toggleFloatingTimer,
+    selectedTaskId,
+    setSelectedTaskId
+  } = uiStore();
+  
+  const [showTaskModal, setShowTaskModal] = useState(false);
   const [showEncouragement, setShowEncouragement] = useState(false);
   const [completedTask, setCompletedTask] = useState<{ id: string; title: string } | null>(null);
   
   // Use timer store
-  const { 
-    selectedTaskId,
-    setSelectedTask
-  } = useTimerStore();
-  
-  // Use notification store for activity tracking
-  const updateActivityTime = useNotificationStore(state => state.updateActivityTime);
+  const { setSelectedTask } = timerStore;
 
   useEffect(() => {
-    localStorage.setItem('darkMode', JSON.stringify(isDark));
-    if (isDark) document.documentElement.classList.add('dark');
-    else document.documentElement.classList.remove('dark');
-  }, [isDark]);
-
-  useEffect(() => {
-    if (user) {
-      fetchTasks();
-      
-      // Update activity time when user logs in
-      updateActivityTime();
-    }
-  }, [user, updateActivityTime]);
-
-  // Close mobile sidebar when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const sidebar = document.getElementById('mobile-sidebar');
-      const menuButton = document.getElementById('mobile-menu-button');
-      if (showMobileSidebar && sidebar && !sidebar.contains(event.target as Node) && !menuButton?.contains(event.target as Node)) {
-        setShowMobileSidebar(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showMobileSidebar]);
-
-  const fetchTasks = async () => {
-    try {
-      const tasksData = await getTasks();
-      setTasks(tasksData);
-    } catch (error) {
-      console.error('Failed to fetch tasks:', error);
-    }
-  };
-
-  const handleStartTask = (taskId: string) => {
-    const task = tasks.find(t => t._id === taskId);
-    if (task) {
-      setSelectedTask(taskId, task.projectId, task.title);
-      useTimerStore.getState().startTimer({
-        taskId,
-        projectId: task.projectId,
-        taskTitle: task.title
-      });
-    }
-  };
-
-  // Thêm listener cho sự kiện start-task từ Dashboard/TasksPage
-  useEffect(() => {
+    // Thêm listener cho sự kiện start-task từ Dashboard/TasksPage
     const onStartTaskEvent = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       handleStartTask(detail.taskId);
@@ -108,8 +54,8 @@ function AppContent() {
     };
   }, []);
 
-  // Thêm listener cho sự kiện create-task để mở modal tạo công việc
   useEffect(() => {
+    // Thêm listener cho sự kiện create-task để mở modal tạo công việc
     const onCreateTaskEvent = () => {
       setShowTaskModal(true);
     };
@@ -125,35 +71,35 @@ function AppContent() {
       const detail = (e as CustomEvent).detail;
       setCompletedTask({ id: detail.taskId, title: detail.taskTitle });
       setShowEncouragement(true);
-      
-      // Update activity time when completing a task
-      updateActivityTime();
     };
     window.addEventListener('task-completed', onTaskCompleted);
     return () => {
       window.removeEventListener('task-completed', onTaskCompleted);
     };
-  }, [updateActivityTime]);
+  }, []);
+
+  const handleStartTask = (taskId: string) => {
+    const task = taskStore.getTaskById(taskId);
+    if (task) {
+      setSelectedTask(taskId, task.projectId, task.title);
+      timerStore.startTimer({
+        taskId,
+        projectId: task.projectId,
+        taskTitle: task.title
+      });
+    }
+  };
 
   const handleTaskSelect = (taskId: string) => {
-    const task = tasks.find(t => t._id === taskId);
-    if (task) {
-      // Dispatch event to open task detail
-      window.dispatchEvent(new CustomEvent('view-task-detail', { 
-        detail: { taskId }
-      }));
-      
-      // Update activity time when selecting a task
-      updateActivityTime();
-    }
+    setSelectedTaskId(taskId);
+    window.dispatchEvent(new CustomEvent('view-task-detail', { 
+      detail: { taskId }
+    }));
   };
 
   const handleProjectSelect = (projectId: string) => {
     // Navigate to project page and select the project
     window.location.href = `/projects?id=${projectId}`;
-    
-    // Update activity time when selecting a project
-    updateActivityTime();
   };
 
   if (isLoading) {
@@ -176,13 +122,13 @@ function AppContent() {
           <Route path="/*" element={
             <>
               {/* Mobile Sidebar Overlay */}
-              {showMobileSidebar && (
+              {isSidebarOpen && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden" />
               )}
 
               {/* Sidebar */}
-              <div className={`${showMobileSidebar ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 fixed lg:static inset-y-0 left-0 z-50 transition-transform duration-300 ease-in-out lg:transition-none`}>
-                <Sidebar onClose={() => setShowMobileSidebar(false)} />
+              <div className={`${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 fixed lg:static inset-y-0 left-0 z-50 transition-transform duration-300 ease-in-out lg:transition-none`}>
+                <Sidebar onClose={closeSidebar} />
               </div>
 
               <div className="flex-1 flex flex-col overflow-hidden min-w-0">
@@ -191,14 +137,17 @@ function AppContent() {
                   <div className="flex items-center space-x-4 min-w-0">
                     {/* Mobile Menu Button */}
                     <button
-                      id="mobile-menu-button"
-                      onClick={() => setShowMobileSidebar(!showMobileSidebar)}
+                      onClick={toggleSidebar}
                       className="lg:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200"
                     >
-                      {showMobileSidebar ? (
-                        <AiOutlineClose className="text-xl text-gray-600 dark:text-gray-400" />
+                      {isSidebarOpen ? (
+                        <svg className="w-6 h-6 text-gray-600 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
                       ) : (
-                        <AiOutlineMenu className="text-xl text-gray-600 dark:text-gray-400" />
+                        <svg className="w-6 h-6 text-gray-600 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
                       )}
                     </button>
 
@@ -219,12 +168,16 @@ function AppContent() {
                       onProjectSelect={handleProjectSelect}
                     />
                     <button
-                      onClick={() => setIsDark(!isDark)}
+                      onClick={toggleDarkMode}
                       className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200"
                     >
-                      {isDark ? 
-                        <AiOutlineSun className="text-lg sm:text-xl text-yellow-400" /> : 
-                        <AiOutlineMoon className="text-lg sm:text-xl text-gray-600" />
+                      {isDarkMode ? 
+                        <svg className="w-5 h-5 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                        </svg> : 
+                        <svg className="w-5 h-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                        </svg>
                       }
                     </button>
                     
@@ -252,7 +205,9 @@ function AppContent() {
                             onClick={logout}
                             className="w-full flex items-center space-x-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors duration-200"
                           >
-                            <FiLogOut className="w-4 h-4" />
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                            </svg>
                             <span>{t('common.signOut')}</span>
                           </button>
                         </div>
@@ -264,7 +219,7 @@ function AppContent() {
                 {/* Compact Timer */}
                 <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-3 transition-colors duration-200">
                   <CompactTimerCard
-                    onExpand={() => setShowFloatingTimer(true)}
+                    onExpand={toggleFloatingTimer}
                   />
                 </div>
 
@@ -287,15 +242,15 @@ function AppContent() {
                 isOpen={showTaskModal}
                 onClose={() => setShowTaskModal(false)}
                 onSave={(task) => {
-                  setTasks(prev => [task, ...prev]);
-                  fetchTasks();
+                  taskStore.fetchTasks();
+                  setShowTaskModal(false);
                 }}
               />
 
               {/* Floating Timer */}
-              {showFloatingTimer && (
+              {isFloatingTimerOpen && (
                 <FloatingTimer
-                  onClose={() => setShowFloatingTimer(false)}
+                  onClose={toggleFloatingTimer}
                 />
               )}
 
@@ -333,7 +288,9 @@ function AppContent() {
 function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <AppInitializer>
+        <AppContent />
+      </AppInitializer>
     </AuthProvider>
   );
 }

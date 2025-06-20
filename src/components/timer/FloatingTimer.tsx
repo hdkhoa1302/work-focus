@@ -1,28 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { AiOutlineClockCircle, AiOutlineMinus, AiOutlineClose, AiOutlineDrag } from 'react-icons/ai';
 import { FiPlay, FiPause, FiRefreshCw, FiMaximize2, FiMinimize2 } from 'react-icons/fi';
+import useTimerStore from '../../stores/timerStore';
 
 interface FloatingTimerProps {
-  remaining: number;
-  mode: 'focus' | 'break';
-  isRunning: boolean;
-  onStart: () => void;
-  onPause: () => void;
-  onResume: () => void;
   onClose: () => void;
-  selectedTaskTitle?: string;
 }
 
-const FloatingTimer: React.FC<FloatingTimerProps> = ({
-  remaining,
-  mode,
-  isRunning,
-  onStart,
-  onPause,
-  onResume,
-  onClose,
-  selectedTaskTitle
-}) => {
+const FloatingTimer: React.FC<FloatingTimerProps> = ({ onClose }) => {
   const [position, setPosition] = useState({ x: window.innerWidth - 320, y: 100 });
   const [isDragging, setIsDragging] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
@@ -30,6 +15,17 @@ const FloatingTimer: React.FC<FloatingTimerProps> = ({
   const [isAlwaysOnTop, setIsAlwaysOnTop] = useState(true);
   const dragRef = useRef<HTMLDivElement>(null);
   const dragOffset = useRef({ x: 0, y: 0 });
+
+  // Use timer store
+  const {
+    remaining,
+    mode,
+    isRunning,
+    selectedTaskTitle,
+    startTimer,
+    pauseTimer,
+    resumeTimer
+  } = useTimerStore();
 
   const minutes = Math.floor(remaining / 1000 / 60).toString().padStart(2, '0');
   const seconds = Math.floor((remaining / 1000) % 60).toString().padStart(2, '0');
@@ -203,7 +199,7 @@ const FloatingTimer: React.FC<FloatingTimerProps> = ({
       <div className="flex justify-center space-x-3 mb-4">
         {!isRunning ? (
           <button
-            onClick={onStart}
+            onClick={() => startTimer()}
             className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg hover:from-green-600 hover:to-emerald-600 transition-all duration-200"
           >
             <FiPlay className="w-4 h-4" />
@@ -211,7 +207,7 @@ const FloatingTimer: React.FC<FloatingTimerProps> = ({
           </button>
         ) : (
           <button
-            onClick={onPause}
+            onClick={pauseTimer}
             className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-yellow-500 to-orange-500 text-white rounded-lg hover:from-yellow-600 hover:to-orange-600 transition-all duration-200"
           >
             <FiPause className="w-4 h-4" />
@@ -221,7 +217,7 @@ const FloatingTimer: React.FC<FloatingTimerProps> = ({
         
         {!isRunning && remaining > 0 && (
           <button
-            onClick={onResume}
+            onClick={resumeTimer}
             className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all duration-200"
           >
             <FiRefreshCw className="w-4 h-4" />

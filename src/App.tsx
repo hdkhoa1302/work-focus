@@ -15,9 +15,9 @@ import InactivityManager from './components/InactivityManager';
 import { AiOutlineMoon, AiOutlineSun, AiOutlineUser, AiOutlineMenu, AiOutlineClose } from 'react-icons/ai';
 import { FiLogOut } from 'react-icons/fi';
 import { getTasks, Task, getEncouragement } from './services/api';
-import { getConfig as apiGetConfig } from './services/api';
-import useLanguage from './hooks/useLanguage';
+import useTimerStore from './stores/timerStore';
 import NotificationBell from './components/NotificationBell';
+import useLanguage from './hooks/useLanguage';
 
 function AppContent() {
   const { t } = useLanguage();
@@ -30,17 +30,22 @@ function AppContent() {
   const [showFloatingTimer, setShowFloatingTimer] = useState(false);
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [selectedTaskId, setSelectedTaskId] = useState<string>('');
   
   // Encouragement modal state
   const [showEncouragement, setShowEncouragement] = useState(false);
   const [completedTask, setCompletedTask] = useState<{ id: string; title: string } | null>(null);
   
-  // Timer state
-  const [remaining, setRemaining] = useState<number>(25 * 60 * 1000);
-  const [mode, setMode] = useState<'focus' | 'break'>('focus');
-  const [isRunning, setIsRunning] = useState<boolean>(false);
-  const [config, setConfig] = useState<{ focus: number; break: number }>({ focus: 25, break: 5 });
+  // Use timer store
+  const { 
+    remaining, 
+    mode, 
+    isRunning, 
+    selectedTaskId,
+    startTimer,
+    pauseTimer,
+    resumeTimer,
+    setSelectedTask
+  } = useTimerStore();
 
   useEffect(() => {
     localStorage.setItem('darkMode', JSON.stringify(isDark));
@@ -51,7 +56,6 @@ function AppContent() {
   useEffect(() => {
     if (user) {
       fetchTasks();
-      fetchConfig();
       
       // Update activity time when user logs in
       window.ipc?.send('user-activity');
@@ -101,85 +105,6 @@ function AppContent() {
     }
   };
 
-  const fetchConfig = async () => {
-    try {
-      const data = await apiGetConfig();
-      if (data.pomodoro) {
-        setConfig(data.pomodoro);
-        setRemaining(data.pomodoro.focus * 60 * 1000);
-      }
-    } catch (err) {
-      console.error('Failed to fetch config:', err);
-    }
-  };
-
-  const handleStartTask = (taskId: string) => {
-    setSelectedTaskId(taskId);
-    setMode('focus');
-    const duration = config.focus * 60 * 1000;
-    setRemaining(duration);
-    setIsRunning(true);
-    window.ipc?.send('timer-start', { type: 'focus', duration, taskId });
-    
-    // Update activity time when starting a task
-    window.ipc?.send('user-activity');
-  };
-
-  const handleTimerStart = () => {
-    if (mode === 'focus' && !selectedTaskId) {
-      alert(t('timer.selectTask'));
-      return;
-    }
-    setIsRunning(true);
-    window.ipc?.send('timer-start', {
-      type: mode,
-      duration: remaining || config[mode] * 60 * 1000,
-      taskId: mode === 'focus' ? selectedTaskId : undefined
-    });
-    
-    // Update activity time when starting timer
-    window.ipc?.send('user-activity');
-  };
-
-  const handleTimerPause = () => {
-    window.ipc?.send('timer-pause');
-  };
-
-  const handleTimerResume = () => {
-    setIsRunning(true);
-    window.ipc?.send('timer-resume');
-    
-    // Update activity time when resuming timer
-    window.ipc?.send('user-activity');
-  };
-
-  // Thêm listener IPC để cập nhật state timer
-  useEffect(() => {
-    const onTick = (_: any, ms: number) => setRemaining(ms);
-    const onDone = (_: any, { type }: any) => {
-      setIsRunning(false);
-      fetchTasks();
-      window.dispatchEvent(new Event('tasks-updated'));
-      if (type === 'focus') {
-        const breakDuration = config.break * 60 * 1000;
-        setMode('break');
-        setRemaining(breakDuration);
-      }
-      
-      // Update activity time when timer completes
-      window.ipc?.send('user-activity');
-    };
-    const onPaused = (_: any, ms: number) => { setIsRunning(false); setRemaining(ms); };
-    window.ipc?.on('timer-tick', onTick);
-    window.ipc?.on('timer-done', onDone);
-    window.ipc?.on('timer-paused', onPaused);
-    return () => {
-      window.ipc?.removeListener('timer-tick', onTick);
-      window.ipc?.removeListener('timer-done', onDone);
-      window.ipc?.removeListener('timer-paused', onPaused);
-    };
-  }, [config]);
-
   // Thêm listener cho sự kiện start-task từ Dashboard/TasksPage
   useEffect(() => {
     const onStartTaskEvent = (e: Event) => {
@@ -190,7 +115,7 @@ function AppContent() {
     return () => {
       window.removeEventListener('start-task', onStartTaskEvent);
     };
-  }, [config]);
+  }, []);
 
   // Thêm listener cho sự kiện create-task để mở modal tạo công việc
   useEffect(() => {
@@ -219,7 +144,17 @@ function AppContent() {
     };
   }, []);
 
-  const selectedTask = tasks.find(task => task._id === selectedTaskId);
+  const handleStartTask = (taskId: string) => {
+    const task = tasks.find(t => t._id === taskId);
+    if (task) {
+      setSelectedTask(taskId, task.projectId, task.title);
+      startTimer({
+        taskId,
+        projectId: task.projectId,
+        taskTitle: task.title
+      });
+    }
+  };
 
   const handleTaskSelect = (taskId: string) => {
     const task = tasks.find(t => t._id === taskId);
@@ -350,14 +285,7 @@ function AppContent() {
                 {/* Compact Timer */}
                 <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-3 transition-colors duration-200">
                   <CompactTimerCard
-                    remaining={remaining}
-                    mode={mode}
-                    isRunning={isRunning}
-                    onStart={handleTimerStart}
-                    onPause={handleTimerPause}
-                    onResume={handleTimerResume}
                     onExpand={() => setShowFloatingTimer(true)}
-                    selectedTaskTitle={selectedTask?.title}
                   />
                 </div>
 
@@ -388,14 +316,7 @@ function AppContent() {
               {/* Floating Timer */}
               {showFloatingTimer && (
                 <FloatingTimer
-                  remaining={remaining}
-                  mode={mode}
-                  isRunning={isRunning}
-                  onStart={handleTimerStart}
-                  onPause={handleTimerPause}
-                  onResume={handleTimerResume}
                   onClose={() => setShowFloatingTimer(false)}
-                  selectedTaskTitle={selectedTask?.title}
                 />
               )}
 

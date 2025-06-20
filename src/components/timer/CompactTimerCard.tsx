@@ -2,35 +2,32 @@ import React, { useState, useEffect } from 'react';
 import { AiOutlineFire, AiOutlineCoffee, AiOutlineProject, AiOutlineCheckSquare } from 'react-icons/ai';
 import { FiPlay, FiPause, FiRefreshCw, FiMaximize2, FiChevronDown } from 'react-icons/fi';
 import { getProjects, getTasks, Task as ApiTask, Project } from '../../services/api';
+import useTimerStore from '../../stores/timerStore';
 
 interface CompactTimerCardProps {
-  remaining: number;
-  mode: 'focus' | 'break';
-  isRunning: boolean;
-  onStart: () => void;
-  onPause: () => void;
-  onResume: () => void;
   onExpand: () => void;
-  selectedTaskTitle?: string;
 }
 
-const CompactTimerCard: React.FC<CompactTimerCardProps> = ({
-  remaining,
-  mode,
-  isRunning,
-  onStart,
-  onPause,
-  onResume,
-  onExpand,
-  selectedTaskTitle
-}) => {
-  // State cho project và task
+const CompactTimerCard: React.FC<CompactTimerCardProps> = ({ onExpand }) => {
+  // State cho project và task dropdown
   const [projects, setProjects] = useState<Project[]>([]);
-  const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [tasks, setTasks] = useState<ApiTask[]>([]);
-  const [selectedTaskId, setSelectedTaskId] = useState<string>('');
   const [showProjectDropdown, setShowProjectDropdown] = useState(false);
   const [showTaskDropdown, setShowTaskDropdown] = useState(false);
+
+  // Sử dụng timer store
+  const {
+    remaining,
+    mode,
+    isRunning,
+    selectedTaskId,
+    selectedProjectId,
+    selectedTaskTitle,
+    startTimer,
+    pauseTimer,
+    resumeTimer,
+    setSelectedTask
+  } = useTimerStore();
 
   // Xử lý class dựa trên mode
   const isFocus = mode === 'focus';
@@ -55,7 +52,6 @@ const CompactTimerCard: React.FC<CompactTimerCardProps> = ({
   useEffect(() => {
     if (!selectedProjectId) { 
       setTasks([]);
-      setSelectedTaskId('');
       return; 
     }
     const fetchTasksByProject = () => {
@@ -76,18 +72,19 @@ const CompactTimerCard: React.FC<CompactTimerCardProps> = ({
   useEffect(() => {
     const handleSelect = (e: Event) => {
       const detail = (e as CustomEvent).detail;
-      if (detail.projectId) {
-        setSelectedProjectId(detail.projectId);
-      }
-      if (detail.taskId) {
-        setSelectedTaskId(detail.taskId);
+      if (detail.projectId || detail.taskId) {
+        setSelectedTask(
+          detail.taskId,
+          detail.projectId,
+          detail.taskTitle
+        );
       }
     };
     window.addEventListener('start-task', handleSelect);
     return () => {
       window.removeEventListener('start-task', handleSelect);
     };
-  }, []);
+  }, [setSelectedTask]);
 
   const selectedProject = projects.find(p => p._id === selectedProjectId);
   const selectedTask = tasks.find(t => t._id === selectedTaskId);
@@ -95,11 +92,13 @@ const CompactTimerCard: React.FC<CompactTimerCardProps> = ({
 
   const handleStartTimer = () => {
     if (isFocus && selectedProjectId && selectedTaskId) {
-      window.dispatchEvent(new CustomEvent('start-task', { 
-        detail: { projectId: selectedProjectId, taskId: selectedTaskId } 
-      }));
+      startTimer({
+        taskId: selectedTaskId,
+        projectId: selectedProjectId,
+        taskTitle: selectedTask?.title
+      });
     } else if (!isFocus) {
-      onStart();
+      startTimer();
     }
   };
 
@@ -164,8 +163,7 @@ const CompactTimerCard: React.FC<CompactTimerCardProps> = ({
                     <button
                       key={project._id}
                       onClick={() => {
-                        setSelectedProjectId(project._id);
-                        setSelectedTaskId('');
+                        setSelectedTask(undefined, project._id);
                         setShowProjectDropdown(false);
                       }}
                       className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm text-gray-900 dark:text-gray-100 border-b border-gray-100 dark:border-gray-700 last:border-b-0"
@@ -209,7 +207,7 @@ const CompactTimerCard: React.FC<CompactTimerCardProps> = ({
                     <button
                       key={task._id}
                       onClick={() => {
-                        setSelectedTaskId(task._id);
+                        setSelectedTask(task._id, selectedProjectId, task.title);
                         setShowTaskDropdown(false);
                       }}
                       className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm text-gray-900 dark:text-gray-100 border-b border-gray-100 dark:border-gray-700 last:border-b-0"
@@ -253,7 +251,7 @@ const CompactTimerCard: React.FC<CompactTimerCardProps> = ({
             </button>
           ) : (
             <button
-              onClick={onPause}
+              onClick={pauseTimer}
               className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-yellow-500 to-orange-500 text-white rounded-lg hover:from-yellow-600 hover:to-orange-600 transition-all duration-200 font-medium shadow-md hover:shadow-lg transform hover:scale-105"
             >
               <FiPause className="w-4 h-4" />
@@ -263,7 +261,7 @@ const CompactTimerCard: React.FC<CompactTimerCardProps> = ({
           
           {!isRunning && remaining > 0 && remaining < (isFocus ? 25 : 5) * 60 * 1000 && (
             <button
-              onClick={onResume}
+              onClick={resumeTimer}
               className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all duration-200 font-medium shadow-md hover:shadow-lg transform hover:scale-105"
             >
               <FiRefreshCw className="w-4 h-4" />

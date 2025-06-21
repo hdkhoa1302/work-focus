@@ -9,7 +9,52 @@ import { ConversationModel } from './models/conversation';
 import { setupAuthRoutes, authenticateToken } from './auth';
 import { ProjectModel } from './models/project';
 import { chat } from './services/geminiService';
-import { findAvailablePortWithInfo, suggestSolution } from './utils/port-checker';
+import { findAvailablePortWithInfo, suggestSolution, findOrReuseWorkFocusPort, PortConflictInfo } from './utils/port-checker';
+import { setAPIConfig } from './config/api-config';
+
+// Calculate daily workload utility function
+const calculateDailyWorkload = (
+  tasks: any[],
+  workSchedule: {
+    startTime: string;
+    endTime: string;
+    breakHours: number;
+  }
+): {
+  isOverloaded: boolean;
+  availableMinutes: number;
+  requiredMinutes: number;
+  overloadedMinutes: number;
+} => {
+  // Tính toán thời gian làm việc có sẵn trong ngày
+  const [startHour, startMinute] = workSchedule.startTime.split(':').map(Number);
+  const [endHour, endMinute] = workSchedule.endTime.split(':').map(Number);
+  
+  const startMinutes = startHour * 60 + startMinute;
+  const endMinutes = endHour * 60 + endMinute;
+  
+  // Tính tổng thời gian làm việc trong ngày (trừ giờ nghỉ)
+  const totalWorkMinutes = endMinutes - startMinutes - (workSchedule.breakHours * 60);
+  
+  // Tính tổng thời gian cần thiết cho các task
+  let requiredMinutes = 0;
+  
+  tasks.forEach(task => {
+    // Mỗi pomodoro là 25 phút
+    requiredMinutes += (task.estimatedPomodoros || 1) * 25;
+  });
+  
+  // Kiểm tra xem có đủ thời gian không
+  const isOverloaded = requiredMinutes > totalWorkMinutes;
+  const overloadedMinutes = Math.max(0, requiredMinutes - totalWorkMinutes);
+  
+  return {
+    isOverloaded,
+    availableMinutes: totalWorkMinutes,
+    requiredMinutes,
+    overloadedMinutes
+  };
+};
 
 export async function setupAPI() {
   const app = express();
@@ -17,6 +62,17 @@ export async function setupAPI() {
 
   app.use(cors());
   app.use(bodyParser.json());
+
+  // Health check endpoint (không cần auth)
+  app.get('/api/health', (req, res) => {
+    res.json({ 
+      service: 'work-focus',
+      app: 'work-focus',
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      version: '1.0.0'
+    });
+  });
 
   // Setup authentication routes
   setupAuthRoutes(app);
@@ -139,7 +195,7 @@ Hãy bắt đầu bằng cách mô tả chi tiết dự án hoặc công việc 
     }
   });
 
-  // Enhanced AI chat endpoint with whiteboard integration
+  // Enhanced AI chat endpoint with comprehensive data integration
   app.post('/api/ai/chat', authenticateToken, async (req, res) => {
     try {
       const userId = (req as any).userId;
@@ -176,26 +232,291 @@ Hãy bắt đầu bằng cách mô tả chi tiết dự án hoặc công việc 
         `${m.from === 'user' ? 'User' : 'AI'}: ${m.text}`
       ).join('\n');
 
-      // Get user data for context
-      const [projects, tasks, sessions] = await Promise.all([
+      // Get comprehensive user data for deep analysis
+      const [projects, tasks, sessions, config] = await Promise.all([
         ProjectModel.find({ userId }),
         TaskModel.find({ userId }),
-        SessionModel.find({ userId })
+        SessionModel.find({ userId }),
+        ConfigModel.findOne({ userId })
       ]);
 
-      // Prepare whiteboard context for AI
+      // Default work schedule if not configured
+      const workSchedule = config?.workSchedule || {
+        hoursPerDay: 8,
+        daysPerWeek: 5,
+        startTime: '09:00',
+        endTime: '17:00',
+        breakHours: 1,
+        overtimeRate: 1.5
+      };
+
+      // Calculate comprehensive productivity metrics
+      const completedTasks = tasks.filter(t => t.status === 'done').length;
+      const totalTasks = tasks.length;
+      const completionRate = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
+      
+      const focusSessions = sessions.filter(s => s.type === 'focus');
+      const totalFocusTime = focusSessions.reduce((total, s) => total + (s.duration || 0), 0);
+      const averageSessionLength = focusSessions.length > 0 ? totalFocusTime / focusSessions.length : 0;
+      
+      // Today's productivity metrics
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayEnd = new Date(today);
+      todayEnd.setHours(23, 59, 59, 999);
+      
+      const todayTasks = tasks.filter(t => 
+        t.updatedAt && new Date(t.updatedAt) >= today && new Date(t.updatedAt) <= todayEnd
+      );
+      const todayCompletedTasks = todayTasks.filter(t => t.status === 'done').length;
+      const todayFocusSessions = focusSessions.filter(s => 
+        new Date(s.startTime) >= today && new Date(s.startTime) <= todayEnd
+      );
+      
+      // Overdue and urgent tasks analysis
+      const overdueTasks = tasks.filter(t => 
+        t.deadline && new Date(t.deadline) < new Date() && t.status !== 'done'
+      );
+      const urgentTasks = tasks.filter(t => {
+        if (!t.deadline || t.status === 'done') return false;
+        const daysUntilDeadline = Math.ceil((new Date(t.deadline).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+        return daysUntilDeadline <= 3 && daysUntilDeadline >= 0;
+      });
+
+      // Calculate daily workload
+      const { isOverloaded, availableMinutes, requiredMinutes, overloadedMinutes } = calculateDailyWorkload(tasks.filter(t => t.status !== 'done'), workSchedule);
+
+      // Prepare comprehensive context for AI
       const whiteboardSummary = whiteboardContext && whiteboardContext.length > 0 
         ? `\n\nWhiteboard hiện tại:\n${whiteboardContext.map((item: any) => 
             `- ${item.type}: "${item.title}" (${item.status}) - ${item.description}`
           ).join('\n')}`
         : '';
 
+      const productivityContext = `
+📊 PHÂN TÍCH NĂNG SUẤT TOÀN DIỆN:
+• Tỷ lệ hoàn thành: ${completionRate.toFixed(1)}% (${completedTasks}/${totalTasks} tasks)
+• Kinh nghiệm Pomodoro: ${focusSessions.length} phiên (${Math.round(totalFocusTime/60)} phút)
+• Thời gian tập trung trung bình: ${Math.round(averageSessionLength/60)} phút/phiên
+• Hôm nay: ${todayCompletedTasks} tasks hoàn thành, ${todayFocusSessions.length} phiên tập trung
+
+⚠️ PHÂN TÍCH RỦI RO:
+• Task quá hạn: ${overdueTasks.length} tasks
+• Task khẩn cấp (<=3 ngày): ${urgentTasks.length} tasks
+• Workload hôm nay: ${isOverloaded ? 'QUÁ TẢI' : 'BÌNH THƯỜNG'} (${Math.round(requiredMinutes/60)}h cần/${Math.round(availableMinutes/60)}h có)
+${isOverloaded ? `• Vượt quá: ${Math.round(overloadedMinutes/60)} giờ` : ''}
+
+🗓️ LỊCH LÀM VIỆC:
+• Giờ làm việc: ${workSchedule.startTime} - ${workSchedule.endTime} (${workSchedule.hoursPerDay - workSchedule.breakHours}h thực)
+• Nghỉ: ${workSchedule.breakHours}h/ngày
+• Làm việc: ${workSchedule.daysPerWeek} ngày/tuần
+
+📋 DỰ ÁN HIỆN TẠI:
+${projects.map(p => `• ${p.name} (${p.status || 'active'}) - ${tasks.filter(t => t.projectId === p._id).length} tasks`).join('\n')}
+`;
+
       let botResponse = '';
       let responseType = 'text';
       let responseData = null;
 
-      // Enhanced project creation intent detection
-      if (message.toLowerCase().includes('tạo dự án') || 
+      // ENHANCED DETECTION: Smart Work Breakdown Mode
+      const isWorkBreakdownRequest = (
+        message.length > 100 && // Long message indicating complex work
+        (
+          // Explicit requests
+          message.toLowerCase().includes('không biết bắt đầu') ||
+          message.toLowerCase().includes('công việc lớn') ||
+          message.toLowerCase().includes('không rõ ràng') ||
+          message.toLowerCase().includes('phức tạp') ||
+          message.toLowerCase().includes('hoang mang') ||
+          message.toLowerCase().includes('bối rối') ||
+          
+          // Implicit indicators
+          (message.toLowerCase().includes('cần làm') && message.length > 80) ||
+          (message.toLowerCase().includes('dự án') && !message.toLowerCase().includes('tạo dự án')) ||
+          (message.toLowerCase().includes('nhiệm vụ') && !message.toLowerCase().includes('task')) ||
+          
+          // Vague descriptions
+          message.toLowerCase().includes('nhiều việc') ||
+          message.toLowerCase().includes('phải làm gì') ||
+          message.toLowerCase().includes('bắt đầu như thế nào')
+        )
+      );
+
+      if (isWorkBreakdownRequest) {
+        responseType = 'work_breakdown';
+        
+        const workBreakdownPrompt = `
+🎯 BẠN LÀ CHUYÊN GIA PHÂN TÍCH CÔNG VIỆC & NĂNG SUẤT
+
+NHIỆM VỤ: Phân tích công việc phức tạp/mơ hồ và tạo kế hoạch hành động cụ thể
+
+MÔ TẢ TỪ NGƯỜI DÙNG: "${message}"
+
+${productivityContext}
+
+LỊCH SỬ CUỘC TRÒ CHUYỆN:
+${conversationHistory}
+
+${whiteboardSummary}
+
+🧠 PHƯƠNG PHÁP PHÂN TÍCH KHOA HỌC:
+1. **Eisenhower Matrix**: Phân loại theo độ quan trọng/khẩn cấp
+2. **SMART Goals**: Mục tiêu cụ thể, đo lường được, khả thi
+3. **Getting Things Done (GTD)**: Chia nhỏ thành next actions
+4. **Flow State**: Xem xét năng lực và thách thức
+5. **Pomodoro Integration**: Ước tính thời gian thực tế
+
+🎯 YÊU CẦU PHÂN TÍCH:
+
+**BƯỚC 1: PHÂN TÍCH & LÀNG RÕ**
+- Xác định mục tiêu chính và kết quả mong đợi
+- Phân tích các thành phần và phụ thuộc
+- Đánh giá độ phức tạp và rủi ro dựa trên dữ liệu user
+
+**BƯỚC 2: WORK BREAKDOWN STRUCTURE**
+- Chia thành 3-7 phases rõ ràng
+- Mỗi phase có 2-5 tasks cụ thể
+- Ước tính Pomodoro dựa trên kinh nghiệm user (${Math.round(averageSessionLength/60)} phút/phiên)
+- Sắp xếp thứ tự ưu tiên logic
+
+**BƯỚC 3: TIMELINE & RISK ASSESSMENT**
+- Dựa trên workload hiện tại (${isOverloaded ? 'OVERLOADED' : 'MANAGEABLE'})
+- Xem xét deadline conflicts với ${urgentTasks.length} urgent tasks
+- Đề xuất timeline realistic với work schedule
+
+**BƯỚC 4: NEXT ACTIONS**
+- 3 hành động cụ thể đầu tiên
+- Estimation time cho mỗi action
+- Prerequisites và resources cần thiết
+
+**BƯỚC 5: CLARIFICATION QUESTIONS**
+- Nếu thông tin chưa đủ, đặt 2-3 câu hỏi cụ thể
+- Focus vào yếu tố quan trọng nhất chưa rõ
+
+Trả về JSON với format:
+{
+  "analysisType": "work_breakdown",
+  "workDescription": "Tóm tắt ngắn gọn công việc",
+  "complexity": "low|medium|high",
+  "riskLevel": "low|medium|high|critical",
+  "phases": [
+    {
+      "name": "Tên phase",
+      "description": "Mô tả chi tiết",
+      "tasks": [
+        {
+          "title": "Task cụ thể với động từ",
+          "description": "Mô tả chi tiết cách thực hiện",
+          "estimatedPomodoros": 1-6,
+          "priority": 1-3,
+          "prerequisites": ["Điều kiện cần"],
+          "deliverable": "Kết quả cụ thể"
+        }
+      ],
+      "duration": "X ngày/tuần"
+    }
+  ],
+  "nextActions": [
+    {
+      "action": "Hành động cụ thể đầu tiên",
+      "timeEstimate": "X phút/giờ",
+      "resources": ["Tài nguyên cần"]
+    }
+  ],
+  "timeline": {
+    "total": "Tổng thời gian",
+    "startDate": "Ngày bắt đầu đề xuất",
+    "milestones": ["Milestone 1", "Milestone 2"]
+  },
+  "riskFactors": ["Rủi ro 1", "Rủi ro 2"],
+  "recommendations": ["Gợi ý 1", "Gợi ý 2"],
+  "clarificationQuestions": ["Câu hỏi 1?", "Câu hỏi 2?"]
+}
+
+Chỉ trả về JSON, không thêm text khác.
+`;
+
+        try {
+          const aiResponse = await chat({
+            model: 'gemini-2.0-flash',
+            contents: workBreakdownPrompt
+          });
+
+          const jsonMatch = aiResponse.text.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const analysis = JSON.parse(jsonMatch[0]);
+            responseData = analysis;
+            
+            // Create comprehensive response
+            const totalPomodoros = analysis.phases.reduce((total: number, phase: any) => 
+              total + phase.tasks.reduce((phaseTotal: number, task: any) => phaseTotal + (task.estimatedPomodoros || 0), 0), 0
+            );
+            
+            const totalHours = Math.round(totalPomodoros * 25 / 60 * 10) / 10;
+            
+            let clarificationText = '';
+            if (analysis.clarificationQuestions && analysis.clarificationQuestions.length > 0) {
+              clarificationText = `\n\n❓ **Để tối ưu hóa phân tích, tôi cần làm rõ:**\n${analysis.clarificationQuestions.map((q: string) => `• ${q}`).join('\n')}`;
+            }
+
+            botResponse = `🎯 **PHÂN TÍCH CÔNG VIỆC HOÀN TẤT!**
+
+📋 **Công việc:** ${analysis.workDescription}
+🎚️ **Độ phức tạp:** ${analysis.complexity === 'high' ? '🔴 Cao' : analysis.complexity === 'medium' ? '🟡 Trung bình' : '🟢 Thấp'}
+⚠️ **Mức độ rủi ro:** ${analysis.riskLevel === 'critical' ? '🚨 Nghiêm trọng' : analysis.riskLevel === 'high' ? '🔴 Cao' : analysis.riskLevel === 'medium' ? '🟡 Trung bình' : '🟢 Thấp'}
+
+⏱️ **Ước tính tổng thể:**
+• ${totalPomodoros} Pomodoro sessions (≈ ${totalHours} giờ)
+• Timeline: ${analysis.timeline.total}
+• Bắt đầu: ${analysis.timeline.startDate}
+
+🗂️ **KẾ HOẠCH THỰC HIỆN:**
+
+${analysis.phases.map((phase: any, index: number) => `
+**Phase ${index + 1}: ${phase.name}** ⏳ ${phase.duration}
+${phase.description}
+
+${phase.tasks.map((task: any, taskIndex: number) => `
+   ${taskIndex + 1}. **${task.title}** 
+      📝 ${task.description}
+      ⏱️ ${task.estimatedPomodoros} Pomodoro | 🎯 Ưu tiên: ${task.priority === 3 ? 'Cao' : task.priority === 2 ? 'Trung bình' : 'Thấp'}
+      📋 Kết quả: ${task.deliverable}
+      ${task.prerequisites.length > 0 ? `🔧 Cần có: ${task.prerequisites.join(', ')}` : ''}
+`).join('')}`).join('\n')}
+
+🚀 **HÀNH ĐỘNG TIẾP THEO (Bắt đầu ngay!):**
+${analysis.nextActions.map((action: any, index: number) => `
+${index + 1}. **${action.action}**
+   ⏱️ Thời gian: ${action.timeEstimate}
+   🛠️ Cần có: ${action.resources.join(', ')}`).join('')}
+
+📈 **Milestones quan trọng:**
+${analysis.timeline.milestones.map((milestone: string) => `• ${milestone}`).join('\n')}
+
+⚠️ **Các rủi ro cần lưu ý:**
+${analysis.riskFactors.map((risk: string) => `• ${risk}`).join('\n')}
+
+💡 **Gợi ý để thành công:**
+${analysis.recommendations.map((rec: string) => `• ${rec}`).join('\n')}${clarificationText}
+
+✅ **Sẵn sàng bắt đầu?** Hãy nói "Tạo kế hoạch này" để tôi tự động tạo dự án và tasks, hoặc yêu cầu điều chỉnh nếu cần!`;
+          }
+        } catch (error) {
+          console.error('Work breakdown analysis failed:', error);
+          botResponse = `❌ Có lỗi xảy ra khi phân tích. Tuy nhiên, dựa trên kinh nghiệm ${focusSessions.length} phiên Pomodoro của bạn, tôi đề xuất:
+
+🎯 **Cách tiếp cận từng bước:**
+1. **Xác định mục tiêu chính** - Bạn muốn đạt được gì cụ thể?
+2. **Liệt kê tất cả thành phần** - Những việc nào cần làm?
+3. **Chia nhỏ thành tasks 25-50 phút** - Dựa trên kinh nghiệm Pomodoro của bạn
+4. **Sắp xếp thứ tự ưu tiên** - Việc nào quan trọng/khẩn cấp nhất?
+
+Hãy mô tả chi tiết hơn để tôi có thể hỗ trợ tốt hơn!`;
+        }
+      }
+      // Enhanced project creation with full data integration
+      else if (message.toLowerCase().includes('tạo dự án') || 
           message.toLowerCase().includes('phân tích') && message.toLowerCase().includes('dự án') ||
           message.toLowerCase().includes('lập kế hoạch') ||
           message.toLowerCase().includes('project') ||
@@ -487,34 +808,164 @@ Chuyển đến trang dự án để xem chi tiết và bắt đầu làm việc
           botResponse = '❌ Không tìm thấy thông tin dự án để tạo. Vui lòng mô tả lại dự án bạn muốn thực hiện.';
         }
       }
-      // General AI chat with enhanced context including whiteboard
+      // Handle "Tạo kế hoạch này" for work breakdown
+      else if ((message.toLowerCase().includes('tạo kế hoạch') || 
+                message.toLowerCase().includes('tạo kế hoạch này') || 
+                message.toLowerCase().includes('bắt đầu thực hiện')) &&
+               conversation.messages.length >= 2) {
+        
+        const lastMessage = conversation.messages[conversation.messages.length - 2];
+        if (lastMessage?.from === 'bot' && lastMessage?.data?.analysisType === 'work_breakdown') {
+          try {
+            const analysis = lastMessage.data;
+            
+            // Create project from work breakdown
+            const project = await ProjectModel.create({
+              name: analysis.workDescription,
+              description: `Dự án được tạo từ phân tích công việc phức tạp.\n\nTimeline: ${analysis.timeline.total}\nĐộ phức tạp: ${analysis.complexity}\nRủi ro: ${analysis.riskLevel}`,
+              userId,
+              estimatedHours: analysis.phases.reduce((total: number, phase: any) => 
+                total + phase.tasks.reduce((phaseTotal: number, task: any) => phaseTotal + ((task.estimatedPomodoros || 0) * 25 / 60), 0), 0
+              )
+            });
+            
+            // Create tasks from all phases
+            const createdTasks = [];
+            let taskOrder = 1;
+            
+            for (const phase of analysis.phases) {
+              // Create a phase comment/note task
+              const phaseTask = await TaskModel.create({
+                projectId: project._id,
+                title: `📋 PHASE: ${phase.name}`,
+                description: `${phase.description}\n\nDuration: ${phase.duration}\n\n--- Phase Tasks Below ---`,
+                priority: 3,
+                estimatedPomodoros: 1,
+                userId,
+                status: 'todo'
+              });
+              createdTasks.push(phaseTask);
+              
+              // Create actual tasks for this phase
+              for (const task of phase.tasks) {
+                const createdTask = await TaskModel.create({
+                  projectId: project._id,
+                  title: task.title,
+                  description: `${task.description}\n\n📋 Deliverable: ${task.deliverable}\n${task.prerequisites.length > 0 ? `🔧 Prerequisites: ${task.prerequisites.join(', ')}` : ''}`,
+                  priority: task.priority,
+                  estimatedPomodoros: task.estimatedPomodoros,
+                  userId,
+                  status: 'todo'
+                });
+                createdTasks.push(createdTask);
+                taskOrder++;
+              }
+            }
+
+            responseType = 'work_breakdown_created';
+            const totalPomodoros = createdTasks.reduce((total, task) => total + (task.estimatedPomodoros || 0), 0);
+            const totalHours = Math.round(totalPomodoros * 25 / 60 * 10) / 10;
+            
+            botResponse = `🎉 **KẾ HOẠCH ĐÃ ĐƯỢC TẠO THÀNH CÔNG!**
+
+📋 **Dự án:** ${project.name}
+🗂️ **${createdTasks.length} tasks** đã được tạo theo ${analysis.phases.length} phases
+⏱️ **Tổng thời gian:** ${totalPomodoros} Pomodoros (≈ ${totalHours} giờ)
+
+**📊 Thống kê dự án:**
+• Độ phức tạp: ${analysis.complexity === 'high' ? '🔴 Cao' : analysis.complexity === 'medium' ? '🟡 Trung bình' : '🟢 Thấp'}
+• Mức độ rủi ro: ${analysis.riskLevel === 'critical' ? '🚨 Nghiêm trọng' : analysis.riskLevel === 'high' ? '🔴 Cao' : analysis.riskLevel === 'medium' ? '🟡 Trung bình' : '🟢 Thấp'}
+• Timeline: ${analysis.timeline.total}
+
+**🚀 BƯỚC TIẾP THEO:**
+
+**Hành động ngay:**
+${analysis.nextActions.map((action: any, index: number) => `${index + 1}. ${action.action} (${action.timeEstimate})`).join('\n')}
+
+**💡 Lưu ý quan trọng:**
+${analysis.riskFactors.map((risk: string) => `⚠️ ${risk}`).join('\n')}
+
+**🎯 Gợi ý để thành công:**
+${analysis.recommendations.map((rec: string) => `• ${rec}`).join('\n')}
+
+✅ **Sẵn sàng bắt đầu!** Chuyển đến trang Tasks hoặc Projects để xem chi tiết và bắt đầu làm việc.
+
+🔥 **Tip:** Bắt đầu với task đầu tiên trong Phase 1 để tạo momentum!`;
+          } catch (error) {
+            console.error('Failed to create work breakdown project:', error);
+            botResponse = '❌ Có lỗi xảy ra khi tạo kế hoạch. Vui lòng thử lại!';
+          }
+        } else {
+          botResponse = '❌ Không tìm thấy phân tích work breakdown để tạo kế hoạch. Vui lòng mô tả lại công việc bạn muốn thực hiện.';
+        }
+      }
+      // General AI chat with comprehensive data integration
       else {
         const contextPrompt = `
-Bạn là AI Agent trợ lý quản lý công việc thông minh, áp dụng các phương pháp khoa học về năng suất.
+🤖 BẠN LÀ AI AGENT QUẢN LÝ CÔNG VIỆC THÔNG MINH
 
-Lịch sử cuộc trò chuyện:
+NHIỆM VỤ: Trả lời câu hỏi dựa trên TOÀN BỘ dữ liệu thực tế của người dùng và áp dụng khoa học tâm lý.
+
+TIN NHẮN: "${message}"
+
+${productivityContext}
+
+LỊCH SỬ CUỘC TRÒ CHUYỆN:
 ${conversationHistory}
 
 ${whiteboardSummary}
 
-Dữ liệu người dùng hiện tại:
-- Số dự án: ${projects.length} (${projects.filter(p => !p.completed).length} đang thực hiện)
-- Số task: ${tasks.length} (${tasks.filter(t => t.status === 'done').length} hoàn thành)
-- Số phiên Pomodoro: ${sessions.filter(s => s.type === 'focus').length}
-- Tỷ lệ hoàn thành: ${tasks.length > 0 ? Math.round((tasks.filter(t => t.status === 'done').length / tasks.length) * 100) : 0}%
+🧠 FRAMEWORK KHOA HỌC:
 
-Tin nhắn mới: ${message}
+**1. SMART Goals Framework:**
+- Specific: Mục tiêu cụ thể, rõ ràng
+- Measurable: Đo lường được bằng Pomodoro/tasks
+- Achievable: Khả thi dựa trên lịch sử ${completionRate.toFixed(1)}% hoàn thành
+- Relevant: Liên quan đến dự án hiện tại
+- Time-bound: Có deadline rõ ràng
 
-Hãy trả lời dựa trên các nguyên tắc khoa học:
-1. **Mục tiêu SMART**: Gợi ý cách đặt mục tiêu cụ thể, đo lường được
-2. **Flow State**: Nhận diện và gợi ý cách duy trì trạng thái tập trung
-3. **Pomodoro Technique**: Khuyến khích sử dụng kỹ thuật này
-4. **Gamification**: Tạo động lực qua thành tích và milestone
-5. **Positive Reinforcement**: Khen ngợi thành tích và động viên
+**2. Flow State Theory (Csikszentmihalyi):**
+- Cân bằng thách thức vs kỹ năng
+- Tận dụng ${Math.round(averageSessionLength/60)} phút/phiên focus trung bình
+- Loại bỏ distraction và interruption
 
-Nếu người dùng hỏi về whiteboard hoặc các ghi chú/quyết định đã lưu, hãy tham khảo thông tin từ whiteboard context.
+**3. Pomodoro Technique Integration:**
+- Dựa trên ${focusSessions.length} phiên kinh nghiệm
+- Ước tính thời gian dựa trên pattern thực tế
+- Break và focus cycle optimization
 
-Trả lời một cách thân thiện, hữu ích và dựa trên dữ liệu thực tế của người dùng.
+**4. Gamification & Achievement System:**
+- Milestone tracking và celebration
+- Progress visualization
+- Streak và habit building
+
+**5. Workload Management Science:**
+- Capacity planning dựa trên work schedule
+- Stress reduction qua priority matrix
+- Energy management và optimal timing
+
+🎯 YÊU CẦU TRẢ LỜI:
+
+**Luôn bao gồm:**
+1. **Phân tích dựa trên dữ liệu thực tế** của user
+2. **Actionable advice** - hành động cụ thể có thể làm ngay
+3. **Time estimation** dựa trên kinh nghiệm Pomodoro
+4. **Risk assessment** nếu có workload issues
+5. **Motivation & encouragement** dựa trên thành tích đã đạt
+
+**Đặc biệt chú ý:**
+- Nếu overloaded (${isOverloaded ? 'HIỆN TẠI' : 'không'}): Đề xuất giảm tải
+- Nếu có urgent tasks (${urgentTasks.length}): Ưu tiên chúng
+- Nếu hỏi về productivity: Sử dụng metrics cụ thể
+- Nếu cần motivation: Cite thành tích đã đạt được
+
+**Phong cách:**
+- Thân thiện nhưng chuyên nghiệp
+- Data-driven nhưng không khô khan
+- Tích cực và solution-focused
+- Cá nhân hóa dựa trên pattern của user
+
+Trả lời bằng tiếng Việt, súc tích nhưng đầy đủ thông tin.
 `;
 
         try {
@@ -1274,19 +1725,26 @@ Trả lời bằng tiếng Việt, thân thiện và có cấu trúc rõ ràng.
     }
   });
 
-  // Tìm port khả dụng với thông tin chi tiết
+  // Tìm port khả dụng hoặc sử dụng lại Work Focus service
   let port: number;
+  let isReusing = false;
   try {
-    const result = await findAvailablePortWithInfo(preferredPort);
+    const result = await findOrReuseWorkFocusPort(preferredPort);
     port = result.port;
+    isReusing = result.isReusing;
     
-    if (port !== preferredPort) {
+    if (isReusing) {
+      console.log(`✅ Đã phát hiện Work Focus service đang chạy ở port ${port}, sử dụng lại service này`);
+      // Không cần khởi động server mới, chỉ cập nhật config
+      setAPIConfig(port);
+      return { server: null, port, isReusing: true };
+    } else if (port !== preferredPort) {
       console.log(`⚠️  Port ${preferredPort} đã bị sử dụng, chuyển sang port ${port}`);
       
       // Hiển thị thông tin chi tiết về các port bị xung đột
       if (result.conflicts.length > 0) {
         console.log('📋 Thông tin các port đã bị sử dụng:');
-        result.conflicts.forEach(conflict => {
+        result.conflicts.forEach((conflict: PortConflictInfo) => {
           if (conflict.processInfo) {
             const { pid, name, cmd } = conflict.processInfo;
             console.log(`   Port ${conflict.port}: ${name} (PID: ${pid}) - ${cmd}`);
@@ -1305,6 +1763,9 @@ Trả lời bằng tiếng Việt, thân thiện và có cấu trúc rõ ràng.
     throw error;
   }
 
+  // Update API config với port đã xác định
+  setAPIConfig(port);
+  
   // Khởi động server với error handling
   const server = app.listen(port, () => {
     console.log(`🌐 API server listening on http://localhost:${port}`);
@@ -1321,5 +1782,5 @@ Trả lời bằng tiếng Việt, thân thiện và có cấu trúc rõ ràng.
     process.exit(1);
   });
 
-  return { server, port };
+  return { server, port, isReusing: false };
 }

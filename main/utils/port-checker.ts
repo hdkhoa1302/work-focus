@@ -167,4 +167,73 @@ export function suggestSolution(conflictInfo: PortConflictInfo): string[] {
   suggestions.push('Hoặc đợi ứng dụng tự động chuyển sang port khác');
   
   return suggestions;
+}
+
+/**
+ * Kiểm tra service đang chạy có phải là Work Focus app không
+ */
+export async function isWorkFocusService(port: number): Promise<boolean> {
+  try {
+    // Tạo AbortController để timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 giây timeout
+    
+    // Thử kết nối đến API endpoint đặc trung của Work Focus
+    const response = await fetch(`http://localhost:${port}/api/health`, {
+      method: 'GET',
+      signal: controller.signal,
+    });
+    
+    clearTimeout(timeoutId);
+    
+    if (response.ok) {
+      const data = await response.json();
+      // Kiểm tra response có chứa signature của Work Focus không
+      return data.service === 'work-focus' || data.app === 'work-focus';
+    }
+  } catch (error) {
+    // Nếu không kết nối được hoặc không phải Work Focus API
+    return false;
+  }
+  
+  return false;
+}
+
+/**
+ * Tìm port khả dụng hoặc sử dụng lại Work Focus service đang chạy
+ */
+export async function findOrReuseWorkFocusPort(
+  startPort: number, 
+  maxTries: number = 10
+): Promise<{ port: number; conflicts: PortConflictInfo[]; isReusing: boolean }> {
+  const conflicts: PortConflictInfo[] = [];
+  
+  // Kiểm tra port mong muốn trước
+  const portInfo = await getProcessUsingPort(startPort);
+  
+  if (portInfo.isAvailable) {
+    return { port: startPort, conflicts: [], isReusing: false };
+  }
+  
+  // Port đã bị sử dụng, kiểm tra có phải Work Focus service không
+  const isWorkFocus = await isWorkFocusService(startPort);
+  if (isWorkFocus) {
+    console.log(`🔄 Phát hiện Work Focus service đang chạy ở port ${startPort}, sử dụng lại service này`);
+    return { port: startPort, conflicts: [portInfo], isReusing: true };
+  }
+  
+  // Không phải Work Focus service, tìm port khác
+  conflicts.push(portInfo);
+  
+  for (let port = startPort + 1; port < startPort + maxTries; port++) {
+    const currentPortInfo = await getProcessUsingPort(port);
+    
+    if (currentPortInfo.isAvailable) {
+      return { port, conflicts, isReusing: false };
+    } else {
+      conflicts.push(currentPortInfo);
+    }
+  }
+  
+  throw new Error(`Không thể tìm thấy port khả dụng trong khoảng ${startPort}-${startPort + maxTries - 1}. Conflicts: ${conflicts.length}`);
 } 

@@ -13,7 +13,13 @@ import psList from 'ps-list';
 dotenv.config();
 (async () => {
   await connectDB();
-  setupAPI();
+  const apiResult = await setupAPI();
+  
+  if (apiResult.isReusing) {
+    console.log('🔄 Sử dụng lại Work Focus API service đang chạy');
+  } else {
+    console.log(`🚀 API service khởi động thành công tại port ${apiResult.port}`);
+  }
 })();
 
 // Tự động reload Electron khi có thay đổi file trong thư mục dist/main (chỉ dev mode)
@@ -195,4 +201,13 @@ ipcMain.on('get-running-apps', async (event) => {
 ipcMain.on('user-logged-in', (event, args: { userId: string }) => {
   setCurrentUser(args.userId);
   updateLastActivityTime();
+});
+
+// Handle API config requests
+ipcMain.handle('get-api-config', () => {
+  const { getAPIConfig } = require('./config/api-config');
+  const apiConfig = getAPIConfig();
+  return {
+    baseUrl: apiConfig.baseUrl
+  };
 });

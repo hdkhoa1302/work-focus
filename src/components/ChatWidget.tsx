@@ -31,6 +31,40 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
   const addWhiteboardItem = useWhiteboardStore(state => state.addItem);
   const updateWhiteboardItem = useWhiteboardStore(state => state.updateItemByTitle);
 
+  // Listen for conversation changes from ChatPage
+  useEffect(() => {
+    const handleConversationChange = (event: CustomEvent) => {
+      const { conversationId } = event.detail;
+      if (conversationId !== activeConversationId) {
+        loadSpecificConversation(conversationId);
+      }
+    };
+
+    window.addEventListener('conversation-changed', handleConversationChange as EventListener);
+    return () => {
+      window.removeEventListener('conversation-changed', handleConversationChange as EventListener);
+    };
+  }, [activeConversationId]);
+
+  const loadSpecificConversation = async (conversationId: string) => {
+    try {
+      setIsLoadingConversation(true);
+      const convs = await getConversations();
+      const conv = convs.find(c => c._id === conversationId);
+      if (conv) {
+        setActiveConversationId(conversationId);
+        setMessages(conv.messages);
+        setLastReadMessageIndex(conv.messages.length - 1);
+        setUnreadCount(0);
+        setConversations(convs);
+      }
+    } catch (error) {
+      console.error('Failed to load specific conversation:', error);
+    } finally {
+      setIsLoadingConversation(false);
+    }
+  };
+
   const toggleOpen = () => {
     const newOpenState = !open;
     setOpen(newOpenState);
@@ -50,7 +84,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
 
   // Enhanced scroll management
   useEffect(() => {
-    if (open && messages.length > 0) {
+    if ((open || fullPage) && messages.length > 0) {
       const timer = setTimeout(() => {
         scrollToBottom();
         setLastReadMessageIndex(messages.length - 1);
@@ -58,7 +92,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
       }, 100);
       return () => clearTimeout(timer);
     }
-  }, [messages, open]);
+  }, [messages, open, fullPage]);
 
   // Scroll detection for showing scroll-to-bottom button
   useEffect(() => {
@@ -77,11 +111,11 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
     };
 
     const container = messagesContainerRef.current;
-    if (container && open) {
+    if (container && (open || fullPage)) {
       container.addEventListener('scroll', handleScroll);
       return () => container.removeEventListener('scroll', handleScroll);
     }
-  }, [messages.length, open]);
+  }, [messages.length, open, fullPage]);
 
   const loadConversations = async () => {
     try {
@@ -132,7 +166,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
 
   const createNewConversation = async () => {
     try {
-      const newConv = await createConversation(`Cuộc trò chuyện ${new Date().toLocaleDateString()}`);
+      const newConv = await createConversation(`Cuộc trô chuyện ${new Date().toLocaleDateString()}`);
       setConversations(prev => [newConv, ...prev.map(c => ({ ...c, isActive: false }))]);
       setActiveConversationId(newConv._id);
       setMessages(newConv.messages);
@@ -247,21 +281,30 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
     }
   };
 
+  // Load conversations when fullPage mode is active
+  useEffect(() => {
+    if (fullPage) {
+      loadConversations();
+    }
+  }, [fullPage]);
+
   // Panel content
   const panel = (
-    <div className={`${fullPage ? 'w-full max-w-4xl' : 'w-full sm:w-96'} ${fullPage ? 'h-full' : 'h-[500px] max-h-[70vh] sm:max-h-[500px]'} bg-white dark:bg-gray-800 shadow-2xl rounded-2xl flex flex-col overflow-hidden border border-gray-200 dark:border-gray-700 backdrop-blur-sm bg-opacity-95 dark:bg-opacity-95`}>
-      <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-4 py-3 flex justify-between items-center">
-        <div className="flex items-center space-x-2">
-          <AiOutlineBulb className="text-lg" />
-          <span className="font-medium">AI Agent</span>
-          {whiteboardItems.length > 0 && (
-            <span className="bg-white bg-opacity-20 text-xs px-2 py-1 rounded-full">
-              {whiteboardItems.length} mục
-            </span>
-          )}
-        </div>
-        <div className="flex space-x-2">
-          {!fullPage && (
+    <div className={`${fullPage ? 'w-full h-full' : 'w-full sm:w-96 h-[500px] max-h-[70vh] sm:max-h-[500px]'} bg-white dark:bg-gray-800 ${fullPage ? '' : 'shadow-2xl rounded-2xl border border-gray-200 dark:border-gray-700 backdrop-blur-sm bg-opacity-95 dark:bg-opacity-95'} flex flex-col overflow-hidden`}>
+      
+      {/* Header - Only show for non-fullPage mode */}
+      {!fullPage && (
+        <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-4 py-3 flex justify-between items-center">
+          <div className="flex items-center space-x-2">
+            <AiOutlineBulb className="text-lg" />
+            <span className="font-medium">AI Agent</span>
+            {whiteboardItems.length > 0 && (
+              <span className="bg-white bg-opacity-20 text-xs px-2 py-1 rounded-full">
+                {whiteboardItems.length} mục
+              </span>
+            )}
+          </div>
+          <div className="flex space-x-2">
             <button 
               onClick={expandChat}
               className="p-1 hover:bg-white hover:bg-opacity-20 rounded transition-colors"
@@ -269,19 +312,19 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
             >
               <AiOutlineExpandAlt className="text-lg" />
             </button>
-          )}
-          <button 
-            onClick={fullPage ? () => navigate('/') : toggleOpen}
-            className="p-1 hover:bg-white hover:bg-opacity-20 rounded transition-colors"
-            title={fullPage ? 'Đóng' : 'Thu gọn'}
-          >
-            <AiOutlineClose className="text-lg" />
-          </button>
+            <button 
+              onClick={toggleOpen}
+              className="p-1 hover:bg-white hover:bg-opacity-20 rounded transition-colors"
+              title="Thu gọn"
+            >
+              <AiOutlineClose className="text-lg" />
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Conversation selector */}
-      {conversations.length > 1 && (
+      {/* Conversation selector - Only show for non-fullPage and when there are multiple conversations */}
+      {!fullPage && conversations.length > 1 && (
         <div className="p-2 border-b border-gray-200 dark:border-gray-700">
           <select
             value={activeConversationId}
@@ -449,13 +492,15 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
         </div>
         
         <div className="flex justify-between items-center">
-          <button
-            onClick={createNewConversation}
-            disabled={isLoadingConversation}
-            className="text-xs text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50"
-          >
-            + Cuộc trò chuyện mới
-          </button>
+          {!fullPage && (
+            <button
+              onClick={createNewConversation}
+              disabled={isLoadingConversation}
+              className="text-xs text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50"
+            >
+              + Cuộc trò chuyện mới
+            </button>
+          )}
           <div className="flex items-center space-x-2">
             {unreadCount > 0 && (
               <button
@@ -481,11 +526,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
   );
 
   if (fullPage) {
-    return (
-      <div className="fixed inset-0 z-50 bg-gray-50 dark:bg-gray-900 flex justify-center items-center p-4">
-        {panel}
-      </div>
-    );
+    return panel;
   }
   
   // Float widget

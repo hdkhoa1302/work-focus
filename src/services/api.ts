@@ -89,7 +89,7 @@ export interface Message {
   from: 'user' | 'bot';
   text: string;
   timestamp: Date;
-  type?: 'text' | 'project' | 'task' | 'analysis' | 'encouragement' | 'note' | 'decision' | 'whiteboard' | 'whiteboard_update' | 'whiteboard_update_confirmation' | 'apply_whiteboard_update';
+  type?: 'text' | 'project' | 'task' | 'analysis' | 'encouragement' | 'note' | 'decision' | 'whiteboard' | 'whiteboard_update' | 'whiteboard_update_confirmation' | 'apply_whiteboard_update' | 'work_breakdown' | 'work_breakdown_created';
   data?: any;
 }
 

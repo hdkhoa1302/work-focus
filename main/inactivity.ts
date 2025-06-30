@@ -55,14 +55,20 @@ function loadFromFile(filename: string): any {
 
 // Initialize the inactivity tracker
 export function setupInactivityTracker() {
-  // TEMPORARILY DISABLE INACTIVITY CHECKS TO FIX LOOP
-  console.log('Inactivity tracker DISABLED to prevent loop');
+  console.log('✅ Setting up inactivity tracker...');
+  
+  // Chỉ setup nếu chưa có interval
+  if (inactivityCheckInterval) {
+    console.log('⚠️ Inactivity tracker already running, skipping...');
   return;
+  }
   
   // Set up interval to check for inactivity
   inactivityCheckInterval = setInterval(() => {
     checkInactivity();
   }, 15 * 60 * 1000); // Check every 15 minutes
+  
+  console.log('✅ Inactivity tracker started');
 }
 
 // Update the last activity time when user performs an action

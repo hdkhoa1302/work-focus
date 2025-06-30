@@ -4,7 +4,19 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="f269f853-6643-4953-b73c-8e8268048dd7" name="Changes" comment="" />
+    <list default="true" id="f269f853-6643-4953-b73c-8e8268048dd7" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/main/api.ts" beforeDir="false" afterPath="$PROJECT_DIR$/main/api.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/main/db.ts" beforeDir="false" afterPath="$PROJECT_DIR$/main/db.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/main/inactivity.ts" beforeDir="false" afterPath="$PROJECT_DIR$/main/inactivity.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/main/main.ts" beforeDir="false" afterPath="$PROJECT_DIR$/main/main.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/main/notification.ts" beforeDir="false" afterPath="$PROJECT_DIR$/main/notification.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/main/services/geminiService.ts" beforeDir="false" afterPath="$PROJECT_DIR$/main/services/geminiService.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/main/timer.ts" beforeDir="false" afterPath="$PROJECT_DIR$/main/timer.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/public/index.html" beforeDir="false" afterPath="$PROJECT_DIR$/public/index.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/AppInitializer.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/AppInitializer.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/ChatWidget.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/ChatWidget.tsx" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -13,14 +25,65 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "git-widget-placeholder": "features/whiteboard",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "ts.external.directory.path": "/Users/dangkhoahuynh/workplace/work-focus/node_modules/typescript/lib"
+  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
+  "lastFilter": {
+    "state": "OPEN",
+    "assignee": "hdkhoa1302"
   }
 }]]></component>
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "https://github.com/hdkhoa1302/work-focus",
+    "accountId": "000a3d69-6360-44bc-9e03-ee0f9b728126"
+  }
+}]]></component>
+  <component name="ProjectColorInfo"><![CDATA[{
+  "customColor": "",
+  "associatedIndex": 7
+}]]></component>
+  <component name="ProjectId" id="2z3CmYFCeXELblqUwU1E6Qo9XOs" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "git-widget-placeholder": "#3 on features/whiteboard",
+    "junie.onboarding.icon.badge.shown": "true",
+    "node.js.detected.package.eslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "ts.external.directory.path": "/Users/dangkhoahuynh/workplace/work-focus/node_modules/typescript/lib",
+    "vue.rearranger.settings.migration": "true"
+  }
+}]]></component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-js-predefined-d6986cc7102b-f27c65a3e318-JavaScript-WS-251.23774.424" />
+      </set>
+    </attachedChunks>
+  </component>
   <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="f269f853-6643-4953-b73c-8e8268048dd7" name="Changes" comment="" />
+      <created>1750950529062</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1750950529062</updated>
+      <workItem from="1750950530390" duration="3726000" />
+    </task>
     <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+    <option name="exactExcludedFiles">
+      <list>
+        <option value="$PROJECT_DIR$/src/index.js" />
+      </list>
+    </option>
   </component>
 </project>

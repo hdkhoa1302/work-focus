@@ -47,7 +47,8 @@ contextBridge.exposeInMainWorld('ipc', {
       'check-upcoming-deadlines',
       'check-project-deadlines',
       'check-workload-warnings',
-      'check-inactivity'
+      'check-inactivity',
+      'api-config-updated'
     ];
     if (validChannels.includes(channel)) {
       ipcRenderer.on(channel, listener);
@@ -66,10 +67,17 @@ contextBridge.exposeInMainWorld('ipc', {
       'check-upcoming-deadlines',
       'check-project-deadlines',
       'check-workload-warnings',
-      'check-inactivity'
+      'check-inactivity',
+      'api-config-updated'
     ];
     if (validChannels.includes(channel)) {
       ipcRenderer.removeListener(channel, listener);
     }
   },
+  sendSync: (channel: string, data?: any) => {
+    const validChannels = ['get-api-config-sync'];
+    if (validChannels.includes(channel)) {
+      return ipcRenderer.sendSync(channel, data);
+    }
+  }
 });

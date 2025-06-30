@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { AiOutlineMessage, AiOutlineClose, AiOutlineExpandAlt, AiOutlineBulb, AiOutlineCopy, AiOutlineCheck, AiOutlineArrowDown } from 'react-icons/ai';
 import MarkdownRenderer from './MarkdownRenderer';
 import useWhiteboardStore from '../stores/whiteboardStore';
+import AgentOrchestrator from '../services/agentService';
+import AgentStatusPanel from './AgentStatusPanel';
 
 interface ChatWidgetProps {
   fullPage?: boolean;
@@ -22,6 +24,9 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [lastReadMessageIndex, setLastReadMessageIndex] = useState(-1);
+  const [isAgentMode, setIsAgentMode] = useState(false);
+  const [agentOrchestrator, setAgentOrchestrator] = useState<AgentOrchestrator | null>(null);
+  const [lastAgentResponses, setLastAgentResponses] = useState<any[]>([]);
   
   const endRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -30,6 +35,22 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
   const whiteboardItems = useWhiteboardStore(state => state.items);
   const addWhiteboardItem = useWhiteboardStore(state => state.addItem);
   const updateWhiteboardItem = useWhiteboardStore(state => state.updateItemByTitle);
+
+  // Initialize agent orchestrator
+  useEffect(() => {
+    const initAgents = async () => {
+      try {
+        // Import gemini service
+        const geminiService = await import('../../main/services/geminiService');
+        const orchestrator = new AgentOrchestrator(geminiService);
+        setAgentOrchestrator(orchestrator);
+      } catch (error) {
+        console.error('Failed to initialize agent orchestrator:', error);
+      }
+    };
+
+    initAgents();
+  }, []);
 
   // Listen for conversation changes from ChatPage
   useEffect(() => {
@@ -215,11 +236,41 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
     }
 
     try {
-      const response: AIChatResponse = await postAIChat({ 
-        message: text,
-        conversationId: activeConversationId,
-        whiteboardContext: whiteboardItems
-      });
+      let response: AIChatResponse;
+      
+      // Use agent mode if enabled and orchestrator is available
+      if (isAgentMode && agentOrchestrator) {
+        const agentResponses = await agentOrchestrator.processUserInput(text, {
+          current_focus_level: 0.8,
+          available_time: 120 // minutes
+        });
+
+        // Store agent responses for UI
+        setLastAgentResponses(agentResponses);
+
+        // Combine agent responses
+        const combinedResponse = agentResponses.map(ar => 
+          `**${ar.agent}:** ${ar.content}`
+        ).join('\n\n');
+
+        response = {
+          message: combinedResponse,
+          conversationId: activeConversationId,
+          type: 'agent_response',
+          data: { 
+            agents: agentResponses,
+            suggestions: agentResponses.flatMap(ar => ar.suggestions || []),
+            actions: agentResponses.flatMap(ar => ar.actions || [])
+          }
+        };
+      } else {
+        // Use traditional single AI approach
+        response = await postAIChat({ 
+          message: text,
+          conversationId: activeConversationId,
+          whiteboardContext: whiteboardItems
+        });
+      }
       
       const botMsg: Message = { 
         from: 'bot', 
@@ -297,14 +348,28 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
         <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-4 py-3 flex justify-between items-center">
           <div className="flex items-center space-x-2">
             <AiOutlineBulb className="text-lg" />
-            <span className="font-medium">AI Agent</span>
+            <span className="font-medium">
+              {isAgentMode ? 'Multi-Agent AI' : 'AI Assistant'}
+            </span>
             {whiteboardItems.length > 0 && (
               <span className="bg-white bg-opacity-20 text-xs px-2 py-1 rounded-full">
                 {whiteboardItems.length} mục
               </span>
             )}
           </div>
-          <div className="flex space-x-2">
+          <div className="flex items-center space-x-2">
+            {/* Agent Mode Toggle */}
+            <button 
+              onClick={() => setIsAgentMode(!isAgentMode)}
+              className={`px-2 py-1 text-xs rounded transition-colors ${
+                isAgentMode 
+                  ? 'bg-green-500 bg-opacity-30 border border-green-300' 
+                  : 'bg-white bg-opacity-20 hover:bg-opacity-30'
+              }`}
+              title={isAgentMode ? 'Chế độ Multi-Agent' : 'Chế độ AI truyền thống'}
+            >
+              {isAgentMode ? 'Agents' : 'Single'}
+            </button>
             <button 
               onClick={expandChat}
               className="p-1 hover:bg-white hover:bg-opacity-20 rounded transition-colors"
@@ -346,6 +411,13 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ fullPage = false }) => {
           )}
         </div>
       )}
+
+      {/* Agent Status Panel */}
+      <AgentStatusPanel 
+        agents={agentOrchestrator?.getAllAgents() || []}
+        lastResponses={lastAgentResponses}
+        isVisible={isAgentMode && agentOrchestrator !== null}
+      />
       
       {/* Messages Container */}
       <div 

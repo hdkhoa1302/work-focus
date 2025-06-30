@@ -7,39 +7,37 @@ import { notificationManager } from './notification';
 import { updateLastActivityTime } from './inactivity';
 
 let interval: NodeJS.Timeout | null = null;
-let startTimestamp = 0;
-let remainingMs = 0;
+let startTimestamp: number = 0;
+let remainingMs: number = 0;
 let currentType: 'focus' | 'break' = 'focus';
-let currentTaskId: string | undefined = undefined;
+let currentTaskId: string | undefined;
+let currentUserId: string = '';
 let blockInterval: NodeJS.Timeout | null = null;
-let currentUserId: string | undefined;
 
 async function checkTaskCompletion(taskId?: string) {
   if (!taskId) return;
   const completedCount = await SessionModel.countDocuments({ taskId, type: 'focus' });
   const task = await TaskModel.findById(taskId);
-  if (task) {
-    const estimate = task.estimatedPomodoros || 1;
-    task.status = completedCount >= estimate ? 'done' : 'in-progress';
+  if (task && completedCount >= (task.estimatedPomodoros || 1)) {
+    task.status = 'done';
     await task.save();
   }
 }
 
 async function killBlockedApps() {
   try {
-    if (!currentUserId) return;
     const config = await ConfigModel.findOne({ userId: currentUserId }).lean();
-    const apps: string[] = config?.blockList?.apps ?? [];
-    apps.forEach(appName => {
-      // kill processes matching appName
-      spawn('pkill', ['-f', appName]);
-    });
+    if (config?.blockList?.apps && config.blockList.apps.length > 0) {
+      for (const appName of config.blockList.apps) {
+        spawn('pkill', ['-f', appName], { stdio: 'ignore' });
+      }
+    }
   } catch (err) {
     console.error('Error killing blocked apps:', err);
   }
 }
 
-// Website blocking disabled
+// Website blocking - tạm thời no-op
 async function blockWebsites() {
   // no-op
 }
@@ -49,9 +47,11 @@ async function unblockWebsites() {
   // no-op
 }
 
-ipcMain.on('user-logged-in', (event, args: { userId: string }) => {
-  currentUserId = args.userId;
-});
+// Removed duplicate IPC handler for 'user-logged-in' - handled in main.ts
+// Function to set current user ID (called from main.ts)
+export function setCurrentUserId(userId: string) {
+  currentUserId = userId;
+}
 
 export function setupTimer(tray: Tray) {
   // Hàm cập nhật đồng hồ đếm ngược lên tray

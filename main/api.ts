@@ -88,6 +88,10 @@ export async function setupAPI() {
   app.get('/api/conversations', async (req, res) => {
     try {
       const userId = (req as any).userId;
+      // Fallback nếu không có database
+      if (!ConversationModel?.find) {
+        return res.json([]);
+      }
       const conversations = await ConversationModel.find({ userId }).sort({ updatedAt: -1 });
       res.json(conversations);
     } catch (error) {
@@ -1774,12 +1778,30 @@ Trả lời bằng tiếng Việt, thân thiện và có cấu trúc rõ ràng.
 
   // Xử lý lỗi server
   server.on('error', (error: any) => {
+    console.error('🚨 API Server Error:', error);
     if (error.code === 'EADDRINUSE') {
       console.error(`❌ Port ${port} đã bị sử dụng. Vui lòng thử khởi động lại ứng dụng.`);
     } else {
       console.error('❌ Lỗi khởi động API server:', error);
     }
-    process.exit(1);
+    // Don't exit the entire app - let it continue without API
+    console.log('⚠️ API server lỗi nhưng app sẽ tiếp tục chạy');
+  });
+
+  // Thêm debugging cho server lifecycle
+  server.on('listening', () => {
+    console.log(`🎧 Server đang listening trên port ${port}`);
+  });
+
+  server.on('close', () => {
+    console.log('🔴 Server đã đóng');
+  });
+
+  process.on('SIGTERM', () => {
+    console.log('📡 Nhận SIGTERM - đóng server gracefully');
+    server.close(() => {
+      console.log('✅ Server đã đóng gracefully');
+    });
   });
 
   return { server, port, isReusing: false };

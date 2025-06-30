@@ -1,21 +1,6 @@
-import { GoogleGenAI } from '@google/genai';
+const { GoogleGenAI } = require('@google/genai');
 
-export interface ChatRequest {
-  model: string;
-  contents: string;
-  generationConfig?: {
-    temperature?: number;
-    candidateCount?: number;
-    topP?: number;
-    topK?: number;
-  };
-}
-
-export interface ChatResponse {
-  text: string;
-}
-
-export async function chat(request: ChatRequest): Promise<ChatResponse> {
+async function chat(request) {
   // Đọc biến môi trường tại runtime
   const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
   const USE_MOCK = process.env.USE_MOCK_GEMINI === 'true';
@@ -83,4 +68,6 @@ Tôi có thể thiết lập các quy tắc chặn xao nhãng cho bạn.`
     console.error('Gemini API Error:', error);
     return { text: 'Xin lỗi, tôi gặp sự cố khi kết nối với Gemini AI.' };
   }
-} 
+}
+
+module.exports = { chat }; 

@@ -4,6 +4,7 @@ import useSessionStore from '../stores/sessionStore';
 import useTaskStore from '../stores/taskStore';
 import useProjectStore from '../stores/projectStore';
 import useConversationStore from '../stores/conversationStore';
+import { testApiConnection } from '../services/api';
 
 // This component handles initializing all stores and data
 const AppInitializer: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -12,7 +13,67 @@ const AppInitializer: React.FC<{ children: React.ReactNode }> = ({ children }) =
   const fetchTasks = useTaskStore(state => state.fetchTasks);
   const fetchProjects = useProjectStore(state => state.fetchProjects);
   const fetchConversations = useConversationStore(state => state.fetchConversations);
-  const [isLoading, setIsLoading] = useState(true);
+  
+  const [apiStatus, setApiStatus] = useState<{
+    connected: boolean;
+    apiUrl: string;
+    error?: string;
+    testing: boolean;
+  }>({
+    connected: false,
+    apiUrl: '',
+    error: undefined,
+    testing: true
+  });
+
+  const [showSuccessNotification, setShowSuccessNotification] = useState(false);
+
+  // Auto-hide success notification after 3 seconds
+  useEffect(() => {
+    if (apiStatus.connected && !apiStatus.testing) {
+      setShowSuccessNotification(true);
+      const timer = setTimeout(() => {
+        setShowSuccessNotification(false);
+      }, 3000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [apiStatus.connected, apiStatus.testing]);
+
+  // Test API connection on startup
+  useEffect(() => {
+    const testConnection = async () => {
+      try {
+        console.log('🌐 Testing API connection...');
+        setApiStatus(prev => ({ ...prev, testing: true }));
+        
+        const result = await testApiConnection();
+        
+        setApiStatus({
+          connected: result.success,
+          apiUrl: result.apiUrl,
+          error: result.error,
+          testing: false
+        });
+        
+        if (result.success) {
+          console.log('✅ API connection successful:', result);
+        } else {
+          console.warn('⚠️ API connection failed:', result.error);
+        }
+      } catch (error) {
+        console.error('❌ API connection test error:', error);
+        setApiStatus({
+          connected: false,
+          apiUrl: 'Unknown',
+          error: error instanceof Error ? error.message : 'Unknown error',
+          testing: false
+        });
+      }
+    };
+    
+    testConnection();
+  }, []);
 
   useEffect(() => {
     const initializeApp = async () => {
@@ -25,34 +86,38 @@ const AppInitializer: React.FC<{ children: React.ReactNode }> = ({ children }) =
           await initialize();
         }
         
-        // Then fetch all data with individual error handling
-        console.log('📊 Đang tải dữ liệu...');
-        const dataPromises = [
-          fetchSessions().catch(err => console.warn('⚠️ Lỗi tải sessions:', err)),
-          fetchTasks().catch(err => console.warn('⚠️ Lỗi tải tasks:', err)),
-          fetchProjects().catch(err => console.warn('⚠️ Lỗi tải projects:', err)),
-          fetchConversations().catch(err => console.warn('⚠️ Lỗi tải conversations:', err))
-        ];
-        
-        // Wait for all with timeout
-        await Promise.race([
-          Promise.all(dataPromises),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Timeout after 10 seconds')), 10000)
-          )
-        ]);
+        // Wait for API connection test to complete before loading data
+        if (!apiStatus.testing && apiStatus.connected) {
+          console.log('📊 API đã sẵn sàng, đang tải dữ liệu trong background...');
+          const dataPromises = [
+            fetchSessions().catch(err => console.warn('⚠️ Lỗi tải sessions:', err)),
+            fetchTasks().catch(err => console.warn('⚠️ Lỗi tải tasks:', err)),
+            fetchProjects().catch(err => console.warn('⚠️ Lỗi tải projects:', err)),
+            fetchConversations().catch(err => console.warn('⚠️ Lỗi tải conversations:', err))
+          ];
+          
+          // Load in background - don't wait
+          Promise.all(dataPromises).then(() => {
+            console.log('✅ Dữ liệu đã được tải trong background!');
+          }).catch(error => {
+            console.error('❌ Lỗi tải dữ liệu background:', error);
+          });
+        } else if (!apiStatus.testing && !apiStatus.connected) {
+          console.warn('⚠️ API không khả dụng, ứng dụng có thể không hoạt động đầy đủ');
+        }
         
         console.log('✅ Khởi tạo ứng dụng thành công!');
       } catch (error) {
         console.error('❌ Lỗi khởi tạo ứng dụng:', error);
         // Continue anyway - don't block the app
-      } finally {
-        setIsLoading(false);
       }
     };
     
-    initializeApp();
-  }, [initialize, initialized, fetchSessions, fetchTasks, fetchProjects, fetchConversations]);
+    // Only initialize after API test is complete
+    if (!apiStatus.testing) {
+      initializeApp();
+    }
+  }, [initialize, initialized, fetchSessions, fetchTasks, fetchProjects, fetchConversations, apiStatus.testing, apiStatus.connected]);
 
   // Setup event listeners for data updates
   useEffect(() => {
@@ -66,34 +131,53 @@ const AppInitializer: React.FC<{ children: React.ReactNode }> = ({ children }) =
     };
     
     window.addEventListener('tasks-updated', handleTasksUpdated);
-    window.ipc?.on('timer-done', handleTimerDone);
+    (window as any).ipc?.on('timer-done', handleTimerDone);
     
     return () => {
       window.removeEventListener('tasks-updated', handleTasksUpdated);
-      window.ipc?.removeListener('timer-done', handleTimerDone);
+      (window as any).ipc?.removeListener('timer-done', handleTimerDone);
     };
   }, [fetchTasks, fetchSessions]);
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-2">
-            Đang khởi tạo Work Focus...
-          </h2>
-          <p className="text-gray-600 dark:text-gray-400 text-sm">
-            Đang tải dữ liệu của bạn...
-          </p>
-          <div className="mt-4 text-xs text-gray-500 dark:text-gray-500">
-            Nếu quá trình này mất quá lâu, hãy kiểm tra kết nối mạng
+  // Always render children - no loading screen
+  return (
+    <>
+      {/* API Connection Status - chỉ hiển thị khi có vấn đề */}
+      {(!apiStatus.connected && !apiStatus.testing) && (
+        <div className="fixed top-4 right-4 z-50 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg max-w-sm">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-red-300 rounded-full animate-pulse"></div>
+            <div>
+              <div className="font-medium">Lỗi kết nối API</div>
+              <div className="text-sm opacity-90">
+                {apiStatus.error || 'Không thể kết nối đến server'}
+              </div>
+              <div className="text-xs opacity-75 mt-1">
+                URL: {apiStatus.apiUrl}
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-    );
-  }
-
-  return <>{children}</>;
+      )}
+      
+      {/* Success notification - tự động ẩn sau 3s */}
+      {(showSuccessNotification && apiStatus.connected && !apiStatus.testing) && (
+        <div className="fixed top-4 right-4 z-50 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg max-w-sm animate-fade-in">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-green-300 rounded-full"></div>
+            <div>
+              <div className="font-medium">API kết nối thành công</div>
+              <div className="text-xs opacity-75">
+                {apiStatus.apiUrl}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {children}
+    </>
+  );
 };
 
 export default AppInitializer;

@@ -1,10 +1,7 @@
-import mongoose from 'mongoose';
-import { config as loadEnv } from 'dotenv';
+const mongoose = require('mongoose');
+require('dotenv').config();
 
-// Load biến môi trường từ .env
-loadEnv();
-
-export async function connectDB() {
+async function connectDB() {
   const uri = process.env.MONGO_URI;
   if (!uri) {
     console.error('❌ MONGO_URI chưa được thiết lập - app sẽ chạy mà không có database');
@@ -13,15 +10,13 @@ export async function connectDB() {
   
   try {
     await mongoose.connect(uri, {
-      // Cải thiện connection options để tránh crash
-      serverSelectionTimeoutMS: 5000, // 5 seconds timeout
+      serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
       bufferCommands: false
     });
     
     console.log('✅ Kết nối MongoDB Atlas thành công');
     
-    // Handle connection events để tránh crash
     mongoose.connection.on('error', (err) => {
       console.error('❌ MongoDB connection error:', err);
     });
@@ -35,4 +30,6 @@ export async function connectDB() {
     console.error('❌ Lỗi kết nối MongoDB Atlas:', error);
     return false;
   }
-} 
+}
+
+module.exports = { connectDB }; 

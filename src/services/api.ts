@@ -1,28 +1,85 @@
 import axios from 'axios';
 
-// Dynamic API base URL
-let API_BASE = 'http://localhost:3000';
+// Default API base URL: remote API
+const API_BASE_DEFAULT = 'https://work-focus-api.vercel.app';
+let API_BASE = API_BASE_DEFAULT;
 
-// Initialize API config from main process
+// FORCE local API trong Electron để test - TODO: remove after fix
+if (typeof window !== 'undefined') {
+  API_BASE = 'http://localhost:3000';
+  console.log('🔧 FORCED local API for testing:', API_BASE);
+}
+
+// Nếu đang chạy trong Electron, lấy config API sync từ main process
+if (typeof window !== 'undefined' && (window as any).ipc?.sendSync) {
+  try {
+    const config = (window as any).ipc.sendSync('get-api-config-sync');
+    if (config?.baseUrl) {
+      API_BASE = config.baseUrl;
+      console.log(`✅ API client đã khởi tạo baseURL từ Electron (sync): ${API_BASE}`);
+    }
+  } catch (error) {
+    console.warn('⚠️ Không thể lấy cấu hình API sync, sử dụng current API:', API_BASE);
+  }
+}
+
+// Tạo axios instance với baseURL đã xác định
+const api = axios.create({
+  baseURL: API_BASE,
+  timeout: 30000, // 30s timeout cho API
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+
+console.log(`🏗️ Axios instance created with baseURL: ${API_BASE}`);
+
+// Initialize API config from main process (for Electron mode)
 const initializeApiConfig = async () => {
-  if (typeof window !== 'undefined' && window.ipc?.invoke) {
+  if (typeof window !== 'undefined' && (window as any).ipc?.invoke) {
     try {
-      const config = await window.ipc.invoke('get-api-config');
+      const config = await (window as any).ipc.invoke('get-api-config');
       if (config?.baseUrl) {
         API_BASE = config.baseUrl;
         api.defaults.baseURL = API_BASE;
-        console.log(`✅ API client đã cập nhật baseURL: ${API_BASE}`);
+        console.log(`✅ API client đã cập nhật baseURL từ Electron: ${API_BASE}`);
+      } else {
+        // Nếu không có config từ Electron, sử dụng remote API
+        console.log(`✅ API client sử dụng remote API: ${API_BASE}`);
       }
     } catch (error) {
-      console.warn('⚠️ Không thể lấy cấu hình API từ main process, sử dụng port mặc định 3000');
+      console.warn('⚠️ Không thể lấy cấu hình API từ main process, sử dụng remote API:', API_BASE);
     }
+  } else if (typeof window !== 'undefined') {
+    // Web mode - use remote API
+    console.log(`✅ API client khởi tạo cho web mode với remote API: ${API_BASE}`);
   }
 };
 
 // Initialize on module load
 initializeApiConfig();
 
-const api = axios.create({ baseURL: API_BASE });
+// Listen for API config updates from main process
+if (typeof window !== 'undefined' && (window as any).ipc?.on) {
+  (window as any).ipc.on('api-config-updated', (event: any, config: { baseUrl: string }) => {
+    console.log('🔄 Received API config update from main process:', config);
+    if (config?.baseUrl && config.baseUrl !== API_BASE) {
+      const oldBaseUrl = API_BASE;
+      API_BASE = config.baseUrl;
+      api.defaults.baseURL = API_BASE;
+      console.log(`🔄 API client cập nhật baseURL: ${oldBaseUrl} → ${API_BASE}`);
+      
+      // Test new API immediately
+      api.get('/api/health').then(response => {
+        console.log('✅ New API endpoint test successful:', response.data);
+      }).catch(error => {
+        console.error('❌ New API endpoint test failed:', error.message);
+      });
+    } else {
+      console.log('⚠️ API config update ignored - same URL or invalid config');
+    }
+  });
+}
 
 // Thêm interceptor để gắn JWT token vào Authorization header
 api.interceptors.request.use((config) => {
@@ -31,19 +88,35 @@ api.interceptors.request.use((config) => {
   if (token && config.headers) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  
+  // Extensive logging để debug
+  console.log(`🌐 API Request: ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
+  console.log(`🔍 Current API_BASE: ${API_BASE}`);
+  console.log(`🔍 Config baseURL: ${config.baseURL}`);
+  console.log(`🔍 Full URL will be: ${config.baseURL}${config.url}`);
+  console.log('🔍 Request headers:', config.headers);
+  
   return config;
 });
 
 // Add response interceptor to handle token expiration
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Log successful responses
+    console.log(`✅ API Response: ${response.config.method?.toUpperCase()} ${response.config.url} - ${response.status}`);
+    return response;
+  },
   (error) => {
+    // Log errors
+    console.error(`❌ API Error: ${error.config?.method?.toUpperCase()} ${error.config?.url} - ${error.response?.status || 'Network Error'}`);
+    
     if (error.response?.status === 401 || error.response?.status === 403) {
-      // Token expired or invalid, clear storage and redirect to login
+      // Token expired or invalid, clear storage
       localStorage.removeItem('authToken');
       sessionStorage.removeItem('authToken');
-      // Optionally trigger a logout event or redirect
-      window.location.reload();
+      // Không tự động reload; let AuthProvider handle state change
+      // Optionally emit logout event
+      window.dispatchEvent(new Event('unauthorized'));
     }
     return Promise.reject(error);
   }
@@ -154,6 +227,28 @@ export const deleteTask = async (id: string): Promise<void> => {
 
 // Xuất api instance để sử dụng trong các service khác
 export { api };
+
+// API Connection Test
+export const testApiConnection = async (): Promise<{
+  success: boolean;
+  apiUrl: string;
+  error?: string;
+}> => {
+  try {
+    const response = await api.get('/api/health');
+    return {
+      success: true,
+      apiUrl: API_BASE,
+      ...response.data
+    };
+  } catch (error: any) {
+    return {
+      success: false,
+      apiUrl: API_BASE,
+      error: error.message || 'Unknown error'
+    };
+  }
+};
 
 // Enhanced Config interface with work schedule
 export interface Config {

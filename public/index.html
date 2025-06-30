@@ -54,47 +54,6 @@
       min-height: 100vh;
     }
     
-    .default-content {
-      display: block;
-      padding: 40px 20px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      text-align: center;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-    }
-    
-    .default-content h1 {
-      font-size: 3rem;
-      font-weight: 700;
-      margin-bottom: 1rem;
-      text-shadow: 0 2px 4px rgba(0,0,0,0.3);
-    }
-    
-    .default-content p {
-      font-size: 1.2rem;
-      opacity: 0.9;
-      max-width: 600px;
-      margin: 0 auto 2rem;
-    }
-    
-    .loading-spinner {
-      width: 40px;
-      height: 40px;
-      border: 4px solid rgba(255,255,255,0.3);
-      border-top: 4px solid white;
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-    }
-    
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-    
     /* Custom scrollbar */
     ::-webkit-scrollbar {
       width: 8px;
@@ -125,29 +84,18 @@
       background: #64748b;
     }
   </style>
+  <style>
+    /* Global draggable region and no-drag class */
+    .draggable {
+      -webkit-app-region: drag;
+    }
+    .no-drag {
+      -webkit-app-region: no-drag;
+    }
+  </style>
 </head>
 <body>
-  <div id="root">
-    <!-- Enhanced default content with better styling -->
-    <div class="default-content">
-      <div class="mb-8">
-        <div class="w-20 h-20 bg-white bg-opacity-20 rounded-full flex items-center justify-center mx-auto mb-6">
-          <svg class="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 20 20">
-            <path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd" />
-          </svg>
-        </div>
-        <h1>FocusTrack</h1>
-        <p>Your ultimate productivity companion powered by the Pomodoro Technique. Manage tasks, track progress, and eliminate distractions to achieve peak focus.</p>
-      </div>
-      
-      <div class="loading-spinner mb-4"></div>
-      <p style="font-size: 1rem; opacity: 0.8;">Loading your productivity dashboard...</p>
-      
-      <div class="mt-8 text-sm opacity-70">
-        <p>If this screen persists, please check the console for any errors.</p>
-      </div>
-    </div>
-  </div>
+  <div id="root"></div>
   <script type="module" src="./index.js"></script>
 </body>
 </html>

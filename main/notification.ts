@@ -1,6 +1,8 @@
-import { Notification, nativeImage } from 'electron';
+import { Notification, nativeImage, BrowserWindow } from 'electron';
 import * as path from 'path';
 import nodeNotifier from 'node-notifier';
+import * as fs from 'fs';
+import { app } from 'electron';
 
 export interface NotificationConfig {
   enabled: boolean;
@@ -77,10 +79,6 @@ class NotificationManager {
 
   private loadConfig() {
     try {
-      const fs = require('fs');
-      const path = require('path');
-      const { app } = require('electron');
-      
       const configPath = path.join(app.getPath('userData'), 'notificationConfig.json');
       if (fs.existsSync(configPath)) {
         const data = fs.readFileSync(configPath, 'utf8');
@@ -93,10 +91,6 @@ class NotificationManager {
 
   private saveConfig() {
     try {
-      const fs = require('fs');
-      const path = require('path');
-      const { app } = require('electron');
-      
       const configPath = path.join(app.getPath('userData'), 'notificationConfig.json');
       const dir = path.dirname(configPath);
       if (!fs.existsSync(dir)) {
@@ -248,10 +242,19 @@ class NotificationManager {
     this.globalLastNotificationTime = new Date();
     this.lastNotificationTimes.set(notification.type, new Date());
 
-    // DISABLED TO PREVENT INFINITE LOOP - renderer handles notifications directly
-    /*
-    this.addToInAppNotifications(notification);
-    */
+    // Send to renderer process for in-app notifications
+    const mainWindow = getMainWindow();
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('new-notification', {
+        id: notification.id,
+        type: notification.type,
+        title: notification.title,
+        body: notification.body,
+        priority: notification.priority,
+        timestamp: notification.timestamp,
+        data: notification.data
+      });
+    }
 
     // Show OS notification if enabled
     if (this.config.osNotifications) {
@@ -264,28 +267,6 @@ class NotificationManager {
       this.playNotificationSound(notification.priority);
     }
   }
-
-  // DISABLED TO PREVENT INFINITE LOOP - renderer handles notifications directly
-  /*
-  private addToInAppNotifications(notification: NotificationData) {
-    // Send to renderer process
-    const mainWindow = require('electron').BrowserWindow.getAllWindows()[0];
-    if (mainWindow) {
-      mainWindow.webContents.send('new-notification', {
-        id: notification.id,
-        type: notification.type,
-        title: notification.title,
-        message: notification.body,
-        timestamp: notification.timestamp,
-        read: false,
-        priority: notification.priority,
-        relatedId: notification.data?.relatedId,
-        relatedType: notification.data?.relatedType,
-        actionRequired: notification.requiresConfirmation
-      });
-    }
-  }
-  */
 
   private async showOSNotification(notification: NotificationData): Promise<void> {
     try {
@@ -309,7 +290,7 @@ class NotificationManager {
 
         osNotification.on('click', () => {
           // Focus the main window
-          const mainWindow = require('electron').BrowserWindow.getAllWindows()[0];
+          const mainWindow = getMainWindow();
           if (mainWindow) {
             if (mainWindow.isMinimized()) mainWindow.restore();
             mainWindow.focus();
@@ -321,7 +302,7 @@ class NotificationManager {
 
         osNotification.on('action', (event, index) => {
           const action = actions[index];
-          const mainWindow = require('electron').BrowserWindow.getAllWindows()[0];
+          const mainWindow = getMainWindow();
           if (mainWindow) {
             if (mainWindow.isMinimized()) mainWindow.restore();
             mainWindow.focus();
@@ -353,7 +334,7 @@ class NotificationManager {
           
           // Handle click
           if (response === 'clicked' || response === 'activate') {
-            const mainWindow = require('electron').BrowserWindow.getAllWindows()[0];
+            const mainWindow = getMainWindow();
             if (mainWindow) {
               if (mainWindow.isMinimized()) mainWindow.restore();
               mainWindow.focus();
@@ -363,7 +344,7 @@ class NotificationManager {
             }
           } else if (metadata && metadata.activationValue) {
             // Handle action button click
-            const mainWindow = require('electron').BrowserWindow.getAllWindows()[0];
+            const mainWindow = getMainWindow();
             if (mainWindow) {
               if (mainWindow.isMinimized()) mainWindow.restore();
               mainWindow.focus();
@@ -433,19 +414,19 @@ class NotificationManager {
   }
 
   private startPeriodicChecks() {
-    if (this.checkInterval) return;
-    
-    // TEMPORARILY DISABLE PERIODIC CHECKS TO FIX LOOP
-    console.log('Periodic notification checks DISABLED to prevent loop');
+    if (this.checkInterval) {
+      console.log('⚠️ Periodic checks already running, skipping...');
     return;
+    }
     
+    console.log('✅ Starting periodic notification checks...');
     const intervalMs = this.config.checkInterval * 60 * 1000;
     this.checkInterval = setInterval(() => {
       this.performPeriodicChecks();
     }, intervalMs);
     
-    // Perform initial check
-    setTimeout(() => this.performPeriodicChecks(), 5000);
+    // Perform initial check after 30 seconds
+    setTimeout(() => this.performPeriodicChecks(), 30000);
   }
 
   private stopPeriodicChecks() {
@@ -577,6 +558,12 @@ class NotificationManager {
   public destroy() {
     this.stopPeriodicChecks();
   }
+}
+
+// Thêm function để get main window an toàn
+function getMainWindow(): BrowserWindow | null {
+  const windows = BrowserWindow.getAllWindows();
+  return windows.length > 0 ? windows[0] : null;
 }
 
 export const notificationManager = new NotificationManager();

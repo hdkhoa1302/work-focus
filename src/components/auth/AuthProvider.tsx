@@ -47,7 +47,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           try {
             const { data: userData } = await api.get<User>('/api/auth/validate');
             setUser(userData);
-            window.ipc?.send('user-logged-in', { userId: userData.id });
+            (window as any).ipc?.send('user-logged-in', { userId: userData.id });
           } catch (err) {
             console.error('Session validation failed:', err);
             // Clear invalid tokens from both storages
@@ -84,7 +84,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
       
       setUser(userData);
-      window.ipc?.send('user-logged-in', { userId: userData.id });
+      (window as any).ipc?.send('user-logged-in', { userId: userData.id });
       
       // Chuyển URL về root để vào Dashboard
       if (typeof window !== 'undefined' && window.history && window.history.replaceState) {
@@ -110,7 +110,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       sessionStorage.removeItem('authToken');
       
       setUser(data.user);
-      window.ipc?.send('user-logged-in', { userId: data.user.id });
+      (window as any).ipc?.send('user-logged-in', { userId: data.user.id });
       
       // Chuyển URL về root để vào Dashboard
       if (typeof window !== 'undefined' && window.history && window.history.replaceState) {
@@ -132,6 +132,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setUser(null);
     setError(null);
   };
+
+  // Listen for unauthorized events from API interceptor to trigger logout
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      console.warn('🔒 Unauthorized detected, logging out');
+      logout();
+    };
+    window.addEventListener('unauthorized', handleUnauthorized);
+    return () => {
+      window.removeEventListener('unauthorized', handleUnauthorized);
+    };
+  }, []);
 
   const resetPassword = async (email: string) => {
     setError(null);

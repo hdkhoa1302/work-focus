@@ -22,6 +22,7 @@ function AppContent() {
   const { t } = useLanguage();
   const { user, logout, isLoading } = useAuth();
   const { uiStore, taskStore, timerStore } = useStores();
+  const { getTaskById, fetchTasks } = taskStore();
   
   const { 
     isDarkMode, 
@@ -40,7 +41,7 @@ function AppContent() {
   const [completedTask, setCompletedTask] = useState<{ id: string; title: string } | null>(null);
   
   // Use timer store
-  const { setSelectedTask } = timerStore;
+  const { setSelectedTask, startTimer } = timerStore();
 
   useEffect(() => {
     // Thêm listener cho sự kiện start-task từ Dashboard/TasksPage
@@ -79,10 +80,10 @@ function AppContent() {
   }, []);
 
   const handleStartTask = (taskId: string) => {
-    const task = taskStore.getTaskById(taskId);
+    const task = getTaskById(taskId);
     if (task) {
       setSelectedTask(taskId, task.projectId, task.title);
-      timerStore.startTimer({
+      startTimer({
         taskId,
         projectId: task.projectId,
         taskTitle: task.title
@@ -116,7 +117,9 @@ function AppContent() {
 
   return (
     <Router>
-      <div className="flex h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
+      <div className="relative flex h-screen pt-8 bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
+        {/* Invisible drag area at top to allow dragging in macOS header region */}
+        <div className="absolute inset-x-0 top-0 h-8 draggable" />
         <Routes>
           <Route path="/chat" element={<ChatPage />} />
           <Route path="/*" element={
@@ -133,8 +136,9 @@ function AppContent() {
 
               <div className="flex-1 flex flex-col overflow-hidden min-w-0">
                 {/* Header */}
-                <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-4 flex items-center justify-between transition-colors duration-200">
-                  <div className="flex items-center space-x-4 min-w-0">
+                <header className="draggable bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-4 flex items-center transition-colors duration-200">
+                  {/* Left: no-drag controls with logo */}
+                  <div className="no-drag flex items-center space-x-4 min-w-0">
                     {/* Mobile Menu Button */}
                     <button
                       onClick={toggleSidebar}
@@ -150,7 +154,7 @@ function AppContent() {
                         </svg>
                       )}
                     </button>
-
+                    {/* App Logo and Title */}
                     <div className="flex items-center space-x-3 min-w-0">
                       <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center flex-shrink-0">
                         <span className="text-white font-bold text-sm">F</span>
@@ -161,8 +165,10 @@ function AppContent() {
                       </div>
                     </div>
                   </div>
-                  
-                  <div className="flex items-center space-x-2 sm:space-x-3">
+                  {/* Center: drag region */}
+                  <div className="draggable flex-1 h-full"></div>
+                  {/* Right: no-drag controls */}
+                  <div className="no-drag flex items-center space-x-2 sm:space-x-3">
                     <NotificationBell 
                       onTaskSelect={handleTaskSelect}
                       onProjectSelect={handleProjectSelect}
@@ -242,7 +248,7 @@ function AppContent() {
                 isOpen={showTaskModal}
                 onClose={() => setShowTaskModal(false)}
                 onSave={(task) => {
-                  taskStore.fetchTasks();
+                  fetchTasks();
                   setShowTaskModal(false);
                 }}
               />
@@ -287,11 +293,9 @@ function AppContent() {
 
 function App() {
   return (
-    <AuthProvider>
-      <AppInitializer>
-        <AppContent />
-      </AppInitializer>
-    </AuthProvider>
+    <AppInitializer>
+      <AppContent />
+    </AppInitializer>
   );
 }
 

@@ -9,13 +9,21 @@
     "build:renderer": "esbuild src/index.tsx --bundle --outfile=dist/main/renderer/index.js --platform=browser --target=es2020 --format=esm",
     "copy-public": "cp public/index.html dist/main/renderer/index.html",
     "build": "npm run build:main && npm run build:renderer && npm run copy-public",
-    "start": "NODE_ENV=production npm run build && electron .",
+    "cleanup": "pkill -f 'Work Focus' || pkill -f 'electron.*work-focus' || pkill -f 'FocusTrack' || pkill -f 'electron.*FocusTrack' || true",
+    "check-processes": "ps aux | grep -E '(Work Focus|FocusTrack|electron.*work-focus)' | grep -v grep || echo 'No Work Focus processes found'",
+    "force-cleanup": "killall -9 'Work Focus' 2>/dev/null || killall -9 'FocusTrack' 2>/dev/null || pkill -9 -f 'electron.*work-focus' 2>/dev/null || echo 'Cleanup completed'",
+    "start": "npm run cleanup && NODE_ENV=production npm run build && electron .",
+    "start-safe": "npm run check-processes && npm run force-cleanup && sleep 2 && npm run start",
+    "debug": "npm run force-cleanup && sleep 2 && NODE_ENV=production npm run build && echo '🚀 Starting with debug logging...' && electron . --enable-logging",
+    "kill-all": "killall -9 'Electron' 2>/dev/null || killall -9 'node' 2>/dev/null || pkill -9 -f 'npm.*work-focus' || true",
+    "clean-start": "npm run kill-all && sleep 3 && NODE_ENV=production npm run build && electron .",
     "dev:main": "tsc -w -p tsconfig.json",
     "dev:renderer": "esbuild src/index.tsx --bundle --outfile=dist/main/renderer/index.js --platform=browser --target=es2020 --format=esm --watch",
-    "start:dev": "npm run build:renderer && npm run copy-public && concurrently --kill-others-on-fail \"npm run dev:main\" \"npm run dev:renderer\" \"wait-on dist/main/renderer/index.html && electron .\"",
+    "start:dev": "npm run cleanup && npm run build:renderer && npm run copy-public && concurrently --kill-others-on-fail \"npm run dev:main\" \"npm run dev:renderer\" \"wait-on dist/main/renderer/index.html && NODE_ENV=development electron .\"",
     "pack": "npm run build && electron-builder --dir",
-    "dist": "npm run build && electron-builder",
+    "dist": "npm run build && echo '→ Kiểm tra thư mục dist trước khi package:' && ls -R dist && electron-builder",
     "dist:mac": "npm run build && electron-builder --mac",
+    "dist:mac:debug": "npm run build && DEBUG=electron-builder electron-builder --mac",
     "dist:win": "npm run build && electron-builder --win",
     "dist:linux": "npm run build && electron-builder --linux"
   },
@@ -42,7 +50,11 @@
       "target": [
         "dmg"
       ],
-      "icon": "build/icon.icns"
+      "icon": "build/icon.icns",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist"
     },
     "win": {
       "target": "nsis",
@@ -66,7 +78,8 @@
           "type": "link",
           "path": "/Applications"
         }
-      ]
+      ],
+      "sign": false
     },
     "files": [
       "dist/main/**/*",
@@ -103,7 +116,9 @@
         ]
       }
     ],
-    "extraResources": [],
+    "extraResources": [
+      { "from": ".env", "to": ".env" }
+    ],
     "compression": "maximum",
     "nsis": {
       "oneClick": false,
